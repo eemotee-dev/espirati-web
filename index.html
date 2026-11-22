@@ -1,0 +1,1008 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ESPIRATI</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f766e">
+<style>
+:root{--bg:#f4f6f6;--card:#fff;--tx:#14201f;--mut:#5b6b69;--pri:#0f766e;--prit:#fff;--bad:#b42318;--ok:#067647;--line:#dbe3e2}
+@media(prefers-color-scheme:dark){:root:not([data-theme]){--bg:#0e1514;--card:#17211f;--tx:#e6efed;--mut:#9bb0ac;--pri:#2dd4bf;--prit:#06201c;--bad:#ff8a80;--ok:#6ee7a8;--line:#2a3836}}
+:root[data-theme=dark]{--bg:#0e1514;--card:#17211f;--tx:#e6efed;--mut:#9bb0ac;--pri:#2dd4bf;--prit:#06201c;--bad:#ff8a80;--ok:#6ee7a8;--line:#2a3836}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:17px/1.6 system-ui,"Segoe UI",Tahoma,Arial,sans-serif;padding-bottom:150px}
+header{background:var(--pri);color:var(--prit);padding:12px 16px;font-weight:700;font-size:19px;display:flex;justify-content:space-between;align-items:center}
+#bell{position:relative;cursor:pointer;font-size:22px}#bell b{position:absolute;top:-6px;inset-inline-start:-8px;background:#d92d20;color:#fff;border-radius:10px;font-size:12px;padding:0 6px}
+main{padding:14px;max-width:680px;margin:auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+h2{margin:0 0 8px;font-size:18px}.mut{color:var(--mut);font-size:15px}.big{font-size:26px;font-weight:700}
+.row{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line)}.row:last-child{border:0}
+input,select,textarea{width:100%;font:inherit;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--tx);margin:6px 0}
+button{font:inherit;font-weight:700;padding:13px 16px;border:0;border-radius:12px;background:var(--pri);color:var(--prit);width:100%;margin-top:8px;cursor:pointer}
+button.sec{background:transparent;color:var(--pri);border:2px solid var(--pri)}button.bad{background:var(--bad);color:#fff}button:disabled{opacity:.45}
+button.mini{width:auto;padding:4px 12px;margin:0;font-size:16px}
+label.chk{display:flex;align-items:center;gap:10px;padding:8px 0}label.chk input{width:24px;height:24px;margin:0}
+.bar{height:12px;background:var(--line);border-radius:8px;overflow:hidden}.bar i{display:block;height:100%;background:var(--pri)}
+.note{padding:12px;border-radius:12px;margin-bottom:12px;font-weight:600}.warn{background:#fff3cd;color:#664d03}.err{background:#fde7e5;color:var(--bad)}.okm{background:#dcfae6;color:var(--ok)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.grid button{margin:0}
+.tabs{display:flex;gap:6px;margin-bottom:10px}.tabs button{margin:0;padding:10px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}.chips button{width:auto;margin:0;padding:8px 12px;font-size:15px}
+.low{color:var(--bad)}.pill{font-size:13px;padding:2px 8px;border-radius:8px;background:var(--line)}
+nav{position:fixed;bottom:0;inset-inline:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:5}
+nav a{flex:1;text-align:center;padding:12px 2px;font-size:14px;color:var(--mut);font-weight:700;cursor:pointer}nav a.on{color:var(--pri)}
+#fab{position:fixed;bottom:76px;inset-inline-start:14px;width:56px;height:56px;border-radius:50%;padding:0;margin:0;font-size:26px;z-index:6;box-shadow:0 4px 12px #0004}
+#sheet{position:fixed;inset:0;background:var(--bg);z-index:10;overflow:auto;padding:14px;display:none}#sheet.on{display:block}
+.invoice table{width:100%;border-collapse:collapse}.invoice td,.invoice th{padding:6px;border-bottom:1px solid var(--line);text-align:start}
+@media print{header,nav,#fab,#sheet,.noprint,button{display:none!important}body{background:#fff;color:#000;padding:0}.card{border:0}.invoice{display:block!important}}
+</style>
+</head>
+<body>
+<header><span id="title">ESPIRATI 1.0</span><span id="bell" onclick="A.go('notes')"></span></header>
+<main id="main"></main>
+<nav id="nav"></nav>
+<button id="fab" onclick="A.ai()" style="display:none" aria-label="المساعد">🤖</button>
+<div id="sheet"></div>
+<script>
+'use strict';
+const L = (function () {
+  const THRESHOLD = 500000;
+  const TYPES = { ACCRUAL: 'مستحق بنشر', SALARY_DUE: 'راتب مستحق', ADVANCE: 'سلفة', WITHDRAWAL: 'سحب', PAYMENT: 'دفعة تسوية' };
+  const fail = (m) => { throw new Error(m); };
+  const isInt = (n) => Number.isInteger(n) && n > 0;
+
+  function newState() {
+    return { v: 2, seq: 3, people: [], entries: [], days: [], supplies: [], liquidations: [], deficit: 0, log: [],
+             accounts: [{ id: 1, name: 'الصندوق', type: 'cash', opening: 0 }], tx: [], warehouses: [{ id: 2, name: 'المخزن الرئيسي' }],
+             items: [], parties: [], sales: [], salesReturns: [], purchases: [], purchaseReturns: [], expenses: [], revenues: [], recurring: [],
+             debts: [], adjustments: [], users: [], keys: {}, counters: { sale: 0, purchase: 0, ret: 0 }, assistantLog: [],
+             settings: { owner: 'المالك', lastBackup: null, theme: 'auto',
+               units: ['حبة', 'دستة', 'كرتونة', 'لتر', 'جالون', 'جركان', 'زوج'],
+               cats: ['إسبيرات الدراجات النارية', 'الزيوت والشحوم', 'البطاريات', 'الإطارات والأنابيب', 'مستلزمات البنشر', 'الإكسسوارات', 'أصناف أخرى', 'عبوات فارغة'],
+               expCats: ['إيجار', 'كهرباء وماء', 'رواتب وأجور', 'نقل', 'حوافز البنشر', 'صيانة', 'متنوعة'] } };
+  }
+  const nid = (s) => s.seq++;
+  const addLog = (s, actor, action, detail) => s.log.push({ at: new Date().toISOString(), actor, action, detail });
+
+  function split(g) { const w = Math.floor(g * 40 / 100), c = Math.floor(g * 20 / 100); return { w, c, s: g - w - c }; }
+
+  function distributeWorkers(share, ids) {
+    if (!ids.length) fail('لا يوجد عامل حاضر');
+    if (ids.length > 2) fail('عدد عمال البنشر الحاضرين في اليوم لا يتجاوز عاملين');
+    const sorted = [...ids].sort((a, b) => a - b), each = Math.floor(share / sorted.length), rem = share - each * sorted.length;
+    const out = {}; sorted.forEach((id, i) => { out[id] = each + (i === 0 ? rem : 0); }); return out;
+  }
+
+  function addPerson(s, p, actor) {
+    const name = (p.name || '').trim();
+    if (!name) fail('الاسم مطلوب');
+    if (!['worker', 'employee', 'chief'].includes(p.kind)) fail('نوع غير صحيح');
+    if (p.kind === 'chief' && s.people.some((x) => x.kind === 'chief')) fail('كبير الموظفين منصب ثابت وواحد فقط');
+    const row = { id: nid(s), name, phone: (p.phone || '').trim(), kind: p.kind, active: true, start: new Date().toISOString().slice(0, 10) };
+    s.people.push(row); addLog(s, actor, 'ADD_PERSON', name); return row;
+  }
+  function person(s, id) { const p = s.people.find((x) => x.id === id); if (!p) fail('الشخص غير موجود'); return p; }
+
+  function balance(s, id) {
+    let b = 0;
+    for (const e of s.entries) if (e.personId === id) b += (e.type === 'ACCRUAL' || e.type === 'SALARY_DUE') ? e.amount : -e.amount;
+    return b;
+  }
+
+  function addEntry(s, pid, type, amount, ref, actor) {
+    const p = person(s, pid);
+    if (!TYPES[type]) fail('نوع القيد غير صحيح');
+    if (!isInt(amount)) fail('المبلغ يجب أن يكون رقماً صحيحاً أكبر من صفر');
+    if (type === 'SALARY_DUE' && p.kind !== 'employee') fail('الرواتب للموظفين فقط، وعمال البنشر مستحقاتهم من نسبة البنشر');
+    if (type === 'ACCRUAL') fail('مستحقات البنشر تُسجَّل تلقائياً من دخل اليوم');
+    if (!ref) fail('مفتاح العملية مطلوب');
+    if (s.entries.some((e) => e.ref === ref)) fail('هذه العملية مسجلة من قبل');
+    if (type === 'ADVANCE' || type === 'WITHDRAWAL' || type === 'PAYMENT') {
+      const c = cashAcc(s); needFunds(s, c.id, amount);
+      postTx(s, c.id, -amount, 'staff_' + type, 'T-' + ref, p.name, actor);
+    }
+    s.entries.push({ id: nid(s), personId: pid, type, amount, ref, at: new Date().toISOString(), by: actor });
+    addLog(s, actor, 'ENTRY_' + type, p.name + ' ' + amount);
+  }
+
+  function openDays(s) { return s.days.filter((d) => !d.liq); }
+  function openTotals(s) {
+    const d = openDays(s), sum = (k) => d.reduce((a, x) => a + x[k], 0);
+    const supplies = s.supplies.filter((x) => !x.liq).reduce((a, x) => a + x.amount, 0);
+    const shop = sum('s');
+    return { gross: sum('gross'), w: sum('w'), c: sum('c'), s: shop, supplies, deficit: s.deficit, net: shop - supplies - s.deficit };
+  }
+  const openBalance = (s) => openTotals(s).gross;
+
+  function recordDay(s, date, gross, presentIds, actor) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) fail('التاريخ غير صحيح');
+    if (!isInt(gross)) fail('دخل البنشر يجب أن يكون رقماً صحيحاً أكبر من صفر');
+    if (s.days.some((d) => d.date === date)) fail('دخل هذا اليوم مسجل مسبقاً: ' + date);
+    const present = (presentIds || []).filter((id) => { const p = s.people.find((x) => x.id === id); return p && p.kind === 'worker' && p.active; });
+    if (!present.length) fail('غاب العاملان: لا يوجد دخل بنشر لهذا اليوم');
+    const sp = split(gross), shares = distributeWorkers(sp.w, present);
+    for (const id of present) if (s.entries.some((e) => e.ref === 'PD-' + date + '-' + id)) fail('مستحقات هذا اليوم مسجلة من قبل');
+    for (const id of present) if (shares[id] > 0)
+      s.entries.push({ id: nid(s), personId: id, type: 'ACCRUAL', amount: shares[id], ref: 'PD-' + date + '-' + id, at: new Date().toISOString(), by: actor });
+    s.days.push({ id: nid(s), date, gross, w: sp.w, c: sp.c, s: sp.s, present, liq: null });
+    addLog(s, actor, 'PUNCTURE_DAY', date + ' ' + gross);
+  }
+
+  function addSupplies(s, amount, note, actor) {
+    if (!isInt(amount)) fail('تكلفة المستلزمات يجب أن تكون رقماً أكبر من صفر');
+    s.supplies.push({ id: nid(s), amount, note: note || '', at: new Date().toISOString(), liq: null });
+    addLog(s, actor, 'PUNCTURE_SUPPLIES', String(amount));
+  }
+
+  function liquidate(s, o) {
+    const t = openTotals(s);
+    if (!o.approver || !o.approver.trim()) fail('اسم المعتمد مطلوب');
+    if (!openDays(s).length && !t.supplies && !s.deficit) fail('لا يوجد رصيد للتصفية');
+    if (o.urgent) { if (!o.reason || !o.reason.trim()) fail('سبب التصفية المستعجلة مطلوب'); }
+    else if (t.gross < THRESHOLD) fail('لم يبلغ الرصيد حد التصفية (' + THRESHOLD + ')');
+    const id = nid(s), net = t.net;
+    const rec = { id, at: new Date().toISOString(), urgent: !!o.urgent, reason: o.urgent ? o.reason.trim() : '', approver: o.approver,
+                  gross: t.gross, workersAlreadyAccrued: t.w, chief: t.c, shopNet: Math.max(0, net), supplies: t.supplies,
+                  deficitIn: s.deficit, deficitOut: net < 0 ? -net : 0 };
+    openDays(s).forEach((d) => { d.liq = id; });
+    s.supplies.forEach((x) => { if (!x.liq) x.liq = id; });
+    s.deficit = rec.deficitOut; s.liquidations.push(rec);
+    addLog(s, o.approver, o.urgent ? 'LIQUIDATE_URGENT' : 'LIQUIDATE', JSON.stringify(rec)); return rec;
+  }
+
+  const exportJSON = (s) => JSON.stringify(s);
+  function importJSON(text) {
+    let o; try { o = JSON.parse(text); } catch (e) { fail('الملف ليس نسخة احتياطية صحيحة'); }
+    if (!o || (o.v !== 1 && o.v !== 2) || !['people', 'entries', 'days', 'supplies', 'liquidations', 'log'].every((k) => Array.isArray(o[k])) || typeof o.seq !== 'number')
+      fail('الملف ليس نسخة احتياطية صحيحة');
+    const d = newState();
+    for (const k of Object.keys(d)) if (o[k] === undefined) o[k] = d[k];
+    o.settings = Object.assign(d.settings, o.settings || {}); o.deficit = o.deficit || 0; o.v = 2; return o;
+  }
+  // ================= الأدوات العامة =================
+  const nowIso = () => new Date().toISOString();
+  const int0 = (n) => { if (n === undefined || n === null || n === '' || Number.isNaN(n)) return 0; if (!Number.isInteger(n) || n < 0) fail('قيمة رقمية غير صحيحة'); return n; };
+  const pad = (n) => String(n).padStart(4, '0');
+  function claim(s, key) { if (!key) fail('مفتاح العملية مطلوب'); if (s.keys[key]) fail('هذه العملية محفوظة مسبقاً'); s.keys[key] = 1; }
+
+  // ================= الخزينة والبنوك =================
+  const cashAcc = (s) => s.accounts.find((a) => a.type === 'cash');
+  function account(s, id) { const a = s.accounts.find((x) => x.id === Number(id)); if (!a) fail('الحساب غير موجود'); return a; }
+  function accBalance(s, id) { const a = account(s, id); return a.opening + s.tx.filter((t) => t.accId === a.id).reduce((x, t) => x + t.amount, 0); }
+  function needFunds(s, id, amount) { if (accBalance(s, id) < amount) fail('رصيد «' + account(s, id).name + '» لا يكفي'); }
+  function postTx(s, accId, amount, kind, ref, note, actor, at) {
+    account(s, accId);
+    if (!Number.isInteger(amount) || amount === 0) fail('المبلغ غير صحيح');
+    if (!ref) fail('مفتاح العملية مطلوب');
+    if (s.tx.some((t) => t.ref === ref)) fail('هذه العملية مسجلة من قبل');
+    s.tx.push({ id: nid(s), accId: Number(accId), amount, kind, ref, note: note || '', by: actor, at: at || nowIso() });
+  }
+  function addAccount(s, o, actor) {
+    const name = (o.name || '').trim(); if (!name) fail('اسم الحساب مطلوب');
+    if (!['cash', 'bank'].includes(o.type)) fail('نوع الحساب غير صحيح');
+    const a = { id: nid(s), name, type: o.type, opening: Number.isInteger(o.opening) ? o.opening : 0 };
+    s.accounts.push(a); addLog(s, actor, 'ADD_ACCOUNT', name); return a;
+  }
+  function deposit(s, accId, amount, key, note, actor) { if (!isInt(amount)) fail('المبلغ يجب أن يكون أكبر من صفر'); claim(s, key); postTx(s, accId, amount, 'deposit', 'D-' + key, note, actor); addLog(s, actor, 'DEPOSIT', amount + ''); }
+  function withdraw(s, accId, amount, key, note, actor) { if (!isInt(amount)) fail('المبلغ يجب أن يكون أكبر من صفر'); claim(s, key); needFunds(s, accId, amount); postTx(s, accId, -amount, 'withdraw', 'W-' + key, note, actor); addLog(s, actor, 'WITHDRAW', amount + ''); }
+  function bankFee(s, accId, amount, key, note, actor) { if (!isInt(amount)) fail('المبلغ يجب أن يكون أكبر من صفر'); claim(s, key); needFunds(s, accId, amount); postTx(s, accId, -amount, 'fee', 'F-' + key, note || 'رسوم وعمولات', actor); }
+  function transfer(s, from, to, amount, key, actor) {
+    if (Number(from) === Number(to)) fail('اختر حسابين مختلفين'); if (!isInt(amount)) fail('المبلغ يجب أن يكون أكبر من صفر');
+    account(s, from); account(s, to); claim(s, key); needFunds(s, from, amount);
+    postTx(s, from, -amount, 'transfer_out', 'TO-' + key, 'تحويل', actor); postTx(s, to, amount, 'transfer_in', 'TI-' + key, 'تحويل', actor);
+  }
+  function reconcile(s, accId, actual, key, actor) {
+    if (!Number.isInteger(actual) || actual < 0) fail('الرصيد الفعلي غير صحيح'); claim(s, key);
+    const diff = actual - accBalance(s, accId); if (diff !== 0) postTx(s, accId, diff, 'recon', 'RC-' + key, 'مطابقة الرصيد الفعلي', actor); return diff;
+  }
+
+  // ================= الأطراف (زبائن وموردون) =================
+  function addParty(s, o, actor) {
+    const name = (o.name || '').trim(); if (!name) fail('الاسم مطلوب');
+    if (!['customer', 'supplier'].includes(o.kind)) fail('نوع غير صحيح');
+    const p = { id: nid(s), kind: o.kind, name, phone: (o.phone || '').trim(), address: o.address || '', notes: o.notes || '', creditLimit: int0(o.creditLimit), rating: o.rating || 0, fav: !!o.fav };
+    s.parties.push(p); addLog(s, actor, 'ADD_PARTY', name); return p;
+  }
+  function party(s, id) { const p = s.parties.find((x) => x.id === Number(id)); if (!p) fail('الطرف غير موجود'); return p; }
+
+  // ================= الأصناف والمخزون =================
+  const CAT_PUNCT = 'مستلزمات البنشر';
+  function item(s, id) { const i = s.items.find((x) => x.id === Number(id)); if (!i) fail('الصنف غير موجود'); return i; }
+  const qtyOf = (it, wh) => it.stock[wh] || 0;
+  const totalQty = (it) => Object.values(it.stock).reduce((a, b) => a + b, 0);
+  function stockIn(it, wh, qty, unitCost) { const tot = totalQty(it); it.avg = Math.round((it.avg * tot + unitCost * qty) / (tot + qty) * 10000) / 10000; it.stock[wh] = qtyOf(it, wh) + qty; }
+  function stockOut(it, wh, qty) {
+    if (qtyOf(it, wh) < qty) fail('الكمية المطلوبة من «' + it.name + '» أكبر من المتاح (' + qtyOf(it, wh) + ')');
+    it.stock[wh] = qtyOf(it, wh) - qty; return it.avg;
+  }
+  function addItem(s, o, actor) {
+    const name = (o.name || '').trim(); if (!name) fail('اسم الصنف مطلوب');
+    const code = (o.code || '').trim(), bc = (o.barcode || '').trim();
+    if (code && s.items.some((i) => i.code === code)) fail('الكود مستخدم لصنف آخر');
+    if (bc && s.items.some((i) => i.barcode === bc)) fail('الباركود مستخدم لصنف آخر');
+    const buy = int0(o.buy), sell = int0(o.sell);
+    const it = { id: nid(s), name, code, barcode: bc, cat: o.cat || 'أصناف أخرى', unit: o.unit || 'حبة', buy, sell, min: int0(o.min), supplierId: o.supplierId ? Number(o.supplierId) : null,
+                 notes: o.notes || '', fav: !!o.fav, quick: !!o.quick, packs: o.packs || [], stock: {}, avg: buy, priceHist: [] };
+    s.items.push(it);
+    if (o.openQty > 0) { const wh = o.whId || s.warehouses[0].id; it.stock[wh] = o.openQty; s.adjustments.push({ id: nid(s), at: nowIso(), itemId: it.id, whId: wh, kind: 'opening', qty: o.openQty, cost: buy, by: actor }); }
+    addLog(s, actor, 'ADD_ITEM', name); return it;
+  }
+  function updateItem(s, id, o, actor) {
+    const it = item(s, id), old = { buy: it.buy, sell: it.sell, name: it.name };
+    if (o.name !== undefined) { if (!o.name.trim()) fail('اسم الصنف مطلوب'); it.name = o.name.trim(); }
+    if (o.buy !== undefined) it.buy = int0(o.buy); if (o.sell !== undefined) it.sell = int0(o.sell); if (o.min !== undefined) it.min = int0(o.min);
+    for (const k of ['cat', 'unit', 'notes', 'fav', 'quick', 'packs', 'supplierId']) if (o[k] !== undefined) it[k] = o[k];
+    addLog(s, actor, 'UPDATE_ITEM', JSON.stringify({ item: it.name, old, new: { buy: it.buy, sell: it.sell, name: it.name } }));
+  }
+  function addWarehouse(s, name, actor) { name = (name || '').trim(); if (!name) fail('اسم المخزن مطلوب'); const w = { id: nid(s), name }; s.warehouses.push(w); addLog(s, actor, 'ADD_WAREHOUSE', name); return w; }
+  const isLow = (it) => it.min > 0 && totalQty(it) <= it.min;
+  function transferStock(s, itemId, from, to, qty, key, actor) {
+    const it = item(s, itemId); if (Number(from) === Number(to)) fail('اختر مخزنين مختلفين'); if (!isInt(qty)) fail('الكمية يجب أن تكون أكبر من صفر');
+    claim(s, key); stockOut(it, Number(from), qty); it.stock[Number(to)] = qtyOf(it, Number(to)) + qty;
+    s.adjustments.push({ id: nid(s), at: nowIso(), itemId: it.id, whId: Number(to), fromWh: Number(from), kind: 'transfer', qty, cost: it.avg, by: actor });
+  }
+  function stocktake(s, itemId, wh, actual, reason, key, actor) {
+    const it = item(s, itemId); if (!Number.isInteger(actual) || actual < 0) fail('الكمية الفعلية غير صحيحة'); claim(s, key);
+    const diff = actual - qtyOf(it, Number(wh)); it.stock[Number(wh)] = actual;
+    s.adjustments.push({ id: nid(s), at: nowIso(), itemId: it.id, whId: Number(wh), kind: 'stocktake', qty: diff, cost: it.avg, reason: reason || '', by: actor });
+    addLog(s, actor, 'STOCKTAKE', it.name + ' ' + diff); return diff;
+  }
+  function writeOffStock(s, itemId, wh, qty, kind, key, actor) {
+    const it = item(s, itemId); if (!['damaged', 'expired'].includes(kind)) fail('نوع غير صحيح'); if (!isInt(qty)) fail('الكمية يجب أن تكون أكبر من صفر');
+    claim(s, key); const c = stockOut(it, Number(wh), qty);
+    s.adjustments.push({ id: nid(s), at: nowIso(), itemId: it.id, whId: Number(wh), kind, qty, cost: c, by: actor }); addLog(s, actor, 'WRITEOFF_' + kind, it.name + ' ' + qty);
+  }
+  /** صرف مستلزمات للبنشر: تُخصم من المخزون الداخلي وتكلفتها من حصة المحل فقط. */
+  function consumePunctureSupply(s, itemId, wh, qty, key, actor) {
+    const it = item(s, itemId); if (it.cat !== CAT_PUNCT) fail('هذا الصنف ليس من مستلزمات البنشر'); if (!isInt(qty)) fail('الكمية يجب أن تكون أكبر من صفر');
+    claim(s, key); const c = stockOut(it, Number(wh), qty), amt = Math.round(c * qty);
+    s.adjustments.push({ id: nid(s), at: nowIso(), itemId: it.id, whId: Number(wh), kind: 'puncture_use', qty, cost: c, by: actor });
+    if (amt > 0) addSupplies(s, amt, it.name + ' × ' + qty, actor); return amt;
+  }
+  /** عبوة فارغة تُسجَّل يدوياً كصنف مستقل (لا تتحول تلقائياً). */
+  function addContainer(s, o, actor) {
+    if (!isInt(o.qty)) fail('الكمية يجب أن تكون أكبر من صفر');
+    const it = addItem(s, { name: o.type + (o.linkedName ? ' (من ' + o.linkedName + ')' : ''), cat: 'عبوات فارغة', unit: 'حبة', sell: o.price || 0, buy: 0, notes: o.linkedName || '', openQty: o.qty, whId: o.whId }, actor);
+    return it;
+  }
+
+  // ================= الديون =================
+  const debtRemaining = (d) => d.principal - d.paid - d.writtenOff;
+  function createDebt(s, o) {
+    const d = { id: nid(s), kind: o.kind, partyId: o.partyId || null, label: o.label || '', principal: o.principal, paid: 0, writtenOff: 0, recovered: 0, due: o.due || null, src: o.src, srcId: o.srcId, pays: [], at: o.at || nowIso() };
+    s.debts.push(d); return d;
+  }
+  function debt(s, id) { const d = s.debts.find((x) => x.id === Number(id)); if (!d) fail('الدين غير موجود'); return d; }
+  function partyBalance(s, pid) { return s.debts.filter((d) => d.partyId === Number(pid)).reduce((a, d) => a + debtRemaining(d), 0); }
+  function methodAcc(s, o) { if (o.method === 'bank') { const a = account(s, o.bankAccId); if (a.type !== 'bank') fail('اختر حساباً بنكياً'); return a.id; } return cashAcc(s).id; }
+  function payDebt(s, debtId, amount, o, actor) {
+    const d = debt(s, debtId); if (!isInt(amount)) fail('المبلغ يجب أن يكون أكبر من صفر');
+    if (d.writtenOff > 0) fail('الدين هالك؛ استخدم استرداد الدين الهالك');
+    if (amount > debtRemaining(d)) fail('الدفعة أكبر من المتبقي'); if (!o.ref) fail('مفتاح العملية مطلوب');
+    const acc = methodAcc(s, o);
+    if (d.kind === 'receivable') postTx(s, acc, amount, 'debt_in', 'DP-' + o.ref, 'تسديد دين', actor, o.at);
+    else { needFunds(s, acc, amount); postTx(s, acc, -amount, 'debt_out', 'DP-' + o.ref, 'سداد مستحق', actor, o.at); }
+    d.paid += amount; d.pays.push({ kind: 'pay', amount, at: o.at || nowIso(), ref: o.ref, by: actor }); addLog(s, actor, 'DEBT_PAY', d.id + ' ' + amount);
+  }
+  function payParty(s, pid, amount, o, actor) {
+    if (!isInt(amount)) fail('المبلغ يجب أن يكون أكبر من صفر');
+    const open = s.debts.filter((d) => d.partyId === Number(pid) && d.writtenOff === 0 && debtRemaining(d) > 0).sort((a, b) => a.id - b.id);
+    if (amount > open.reduce((a, d) => a + debtRemaining(d), 0)) fail('المبلغ أكبر من الدين');
+    let left = amount; for (const d of open) { if (left <= 0) break; const x = Math.min(left, debtRemaining(d)); payDebt(s, d.id, x, Object.assign({}, o, { ref: o.ref + '-' + d.id }), actor); left -= x; }
+  }
+  function writeOffDebt(s, id, actor) { const d = debt(s, id); if (debtRemaining(d) <= 0) fail('لا يوجد متبقٍ لإهلاكه'); d.writtenOff = debtRemaining(d); d.woAt = nowIso(); addLog(s, actor, 'DEBT_WRITEOFF', d.id + ' ' + d.writtenOff); }
+  function recoverBadDebt(s, id, amount, o, actor) {
+    const d = debt(s, id); if (d.writtenOff === 0) fail('الدين ليس هالكاً'); if (!isInt(amount) || amount > d.writtenOff - d.recovered) fail('مبلغ الاسترداد غير صحيح');
+    postTx(s, methodAcc(s, o), amount, 'bad_debt_recovery', 'BR-' + o.ref, 'استرداد دين هالك', actor, o.at);
+    d.recovered += amount; d.pays.push({ kind: 'recovery', amount, at: o.at || nowIso(), ref: o.ref, by: actor });
+  }
+  function offsetDebts(s, recvId, payId, amount, key, actor) {
+    const a = debt(s, recvId), b = debt(s, payId); if (a.kind !== 'receivable' || b.kind !== 'payable') fail('المقاصة بين دين لنا ودين علينا');
+    if (!isInt(amount) || amount > debtRemaining(a) || amount > debtRemaining(b)) fail('مبلغ المقاصة غير صحيح'); claim(s, key);
+    a.paid += amount; b.paid += amount; a.pays.push({ kind: 'offset', amount, at: nowIso(), ref: key }); b.pays.push({ kind: 'offset', amount, at: nowIso(), ref: key }); addLog(s, actor, 'DEBT_OFFSET', amount + '');
+  }
+  function agingBucket(d, today) {
+    if (debtRemaining(d) <= 0 || !d.due || today <= d.due) return 0;
+    const days = Math.floor((Date.parse(today) - Date.parse(d.due)) / 864e5); return days <= 30 ? 1 : days <= 60 ? 2 : days <= 90 ? 3 : 4;
+  }
+  function installments(amount, n) { if (!isInt(n)) fail('عدد الأقساط غير صحيح'); const each = Math.floor(amount / n), a = Array(n).fill(each); a[n - 1] += amount - each * n; return a; }
+
+  // ================= المبيعات =================
+  function createSale(s, o, actor) {
+    claim(s, o.key);
+    try {
+      if (!o.lines || !o.lines.length) fail('الفاتورة بلا أصناف');
+      const wh = Number(o.whId || s.warehouses[0].id), need = {}, lines = []; let linesNet = 0;
+      for (const l of o.lines) {
+        const it = item(s, l.itemId); if (it.cat === CAT_PUNCT) fail('مستلزمات البنشر لا تُباع');
+        const f = l.factor || 1; if (!isInt(l.qty)) fail('الكمية يجب أن تكون عدداً صحيحاً أكبر من صفر');
+        const price = int0(l.price), disc = int0(l.disc || 0), gross = l.qty * price; if (disc > gross) fail('الخصم غير صحيح');
+        need[it.id] = (need[it.id] || 0) + l.qty * f; linesNet += gross - disc;
+        lines.push({ itemId: it.id, name: it.name, qty: l.qty, factor: f, unit: l.unit || it.unit, price, disc, returned: 0 });
+      }
+      for (const id of Object.keys(need)) { const it = item(s, id); if (qtyOf(it, wh) < need[id]) fail('الكمية المطلوبة من «' + it.name + '» أكبر من المتاح (' + qtyOf(it, wh) + ')'); }
+      const idisc = int0(o.discount || 0); if (idisc > linesNet) fail('خصم الفاتورة غير صحيح');
+      const total = linesNet - idisc, cash = int0(o.cash || 0), bank = int0(o.bank || 0), credit = total - cash - bank;
+      if (credit < 0) fail('المدفوع أكبر من إجمالي الفاتورة');
+      if (bank > 0) { if (!(o.bankRef || '').trim()) fail('رقم العملية البنكية إلزامي'); if (account(s, o.bankAccId).type !== 'bank') fail('اختر حساباً بنكياً'); }
+      let cust = null;
+      if (credit > 0) {
+        cust = o.customerId ? party(s, o.customerId) : null;
+        if (!cust || cust.kind !== 'customer') fail('البيع الآجل لزبون مسجل فقط');
+        if (!cust.phone) fail('رقم هاتف الزبون إلزامي عند تسجيل الدين');
+        if (cust.creditLimit > 0 && partyBalance(s, cust.id) + credit > cust.creditLimit) fail('تجاوز حد الائتمان للزبون');
+      }
+      const at = o.at || nowIso();
+      for (const l of lines) l.cost = stockOut(item(s, l.itemId), wh, l.qty * l.factor);
+      const inv = { id: nid(s), no: 'S-' + pad(++s.counters.sale), at, customerId: cust ? cust.id : (o.customerId ? Number(o.customerId) : null), lines, discount: idisc, total, linesNet, cash, bank, bankRef: o.bankRef || '', bankAccId: bank > 0 ? Number(o.bankAccId) : null, credit, whId: wh, by: actor };
+      s.sales.push(inv);
+      if (cash > 0) postTx(s, cashAcc(s).id, cash, 'sale', inv.no + '-c', inv.no, actor, at);
+      if (bank > 0) postTx(s, o.bankAccId, bank, 'sale', inv.no + '-b', inv.no + ' ' + inv.bankRef, actor, at);
+      if (credit > 0) createDebt(s, { kind: 'receivable', partyId: cust.id, principal: credit, due: o.due, src: 'sale', srcId: inv.id, at });
+      addLog(s, actor, 'SALE', inv.no + ' ' + total); return inv;
+    } catch (e) { delete s.keys[o.key]; throw e; }
+  }
+  function returnSale(s, saleId, rl, o, actor) {
+    const inv = s.sales.find((x) => x.id === Number(saleId)); if (!inv) fail('الفاتورة غير موجودة'); claim(s, o.key);
+    try {
+      if (!rl || !rl.length) fail('اختر أصنافاً للمرتجع');
+      let amount = 0, cost = 0; const items = [];
+      for (const r of rl) {
+        const l = inv.lines[r.idx]; if (!l) fail('بند غير صحيح'); if (!isInt(r.qty) || r.qty > l.qty - l.returned) fail('كمية المرتجع أكبر من المباع');
+        amount += Math.round(r.qty * (l.qty * l.price - l.disc) / l.qty * (inv.total / inv.linesNet)); cost += r.qty * l.factor * l.cost; items.push({ idx: r.idx, qty: r.qty });
+      }
+      let reduce = 0; const d = s.debts.find((x) => x.src === 'sale' && x.srcId === inv.id);
+      if (d) reduce = Math.min(amount, debtRemaining(d));
+      const cashPart = amount - reduce, acc = methodAcc(s, o);
+      if (cashPart > 0) needFunds(s, acc, cashPart);
+      for (const r of rl) { const l = inv.lines[r.idx]; l.returned += r.qty; stockIn(item(s, l.itemId), inv.whId, r.qty * l.factor, l.cost); }
+      if (reduce > 0) { d.paid += reduce; d.pays.push({ kind: 'return', amount: reduce, at: nowIso(), ref: o.key }); }
+      if (cashPart > 0) postTx(s, acc, -cashPart, 'sale_return', 'SR-' + o.key, inv.no, actor);
+      const ret = { id: nid(s), no: 'R-' + pad(++s.counters.ret), saleId: inv.id, at: o.at || nowIso(), items, amount, cost, by: actor };
+      s.salesReturns.push(ret); addLog(s, actor, 'SALE_RETURN', inv.no + ' ' + amount); return ret;
+    } catch (e) { delete s.keys[o.key]; throw e; }
+  }
+
+  // ================= المشتريات =================
+  function createPurchase(s, o, actor) {
+    claim(s, o.key);
+    try {
+      if (!o.lines || !o.lines.length) fail('الفاتورة بلا أصناف');
+      const wh = Number(o.whId || s.warehouses[0].id); let linesNet = 0; const lines = [];
+      for (const l of o.lines) {
+        const it = item(s, l.itemId), f = l.factor || 1; if (!isInt(l.qty)) fail('الكمية يجب أن تكون عدداً صحيحاً أكبر من صفر');
+        const cost = int0(l.cost); linesNet += l.qty * cost; lines.push({ itemId: it.id, name: it.name, qty: l.qty, factor: f, unit: l.unit || it.unit, cost, returned: 0 });
+      }
+      const idisc = int0(o.discount || 0); if (idisc > linesNet) fail('الخصم غير صحيح');
+      const total = linesNet - idisc, cash = int0(o.cash || 0), bank = int0(o.bank || 0), credit = total - cash - bank;
+      if (credit < 0) fail('المدفوع أكبر من إجمالي الفاتورة');
+      if (cash > 0) needFunds(s, cashAcc(s).id, cash);
+      if (bank > 0) { if (!(o.bankRef || '').trim()) fail('رقم العملية البنكية إلزامي'); if (account(s, o.bankAccId).type !== 'bank') fail('اختر حساباً بنكياً'); needFunds(s, o.bankAccId, bank); }
+      let sup = null; if (credit > 0 || o.supplierId) { sup = party(s, o.supplierId); if (sup.kind !== 'supplier') fail('اختر مورداً'); }
+      if (credit > 0 && !sup) fail('الشراء الآجل لمورد مسجل فقط');
+      const at = o.at || nowIso(), ratio = linesNet ? total / linesNet : 1;
+      for (const l of lines) { const it = item(s, l.itemId), unitCost = l.cost * ratio / l.factor; stockIn(it, wh, l.qty * l.factor, unitCost); it.buy = Math.round(l.cost / l.factor); it.priceHist.push({ at, cost: Math.round(unitCost * 100) / 100, supplierId: sup ? sup.id : null }); }
+      const inv = { id: nid(s), no: 'P-' + pad(++s.counters.purchase), at, supplierId: sup ? sup.id : null, lines, discount: idisc, total, linesNet, cash, bank, bankRef: o.bankRef || '', bankAccId: bank > 0 ? Number(o.bankAccId) : null, credit, whId: wh, by: actor };
+      s.purchases.push(inv);
+      if (cash > 0) postTx(s, cashAcc(s).id, -cash, 'purchase', inv.no + '-c', inv.no, actor, at);
+      if (bank > 0) postTx(s, o.bankAccId, -bank, 'purchase', inv.no + '-b', inv.no + ' ' + inv.bankRef, actor, at);
+      if (credit > 0) createDebt(s, { kind: 'payable', partyId: sup.id, principal: credit, due: o.due, src: 'purchase', srcId: inv.id, at });
+      addLog(s, actor, 'PURCHASE', inv.no + ' ' + total); return inv;
+    } catch (e) { delete s.keys[o.key]; throw e; }
+  }
+  function returnPurchase(s, purId, rl, o, actor) {
+    const inv = s.purchases.find((x) => x.id === Number(purId)); if (!inv) fail('الفاتورة غير موجودة'); claim(s, o.key);
+    try {
+      if (!rl || !rl.length) fail('اختر أصنافاً للمرتجع'); let amount = 0;
+      for (const r of rl) {
+        const l = inv.lines[r.idx]; if (!l) fail('بند غير صحيح'); if (!isInt(r.qty) || r.qty > l.qty - l.returned) fail('كمية المرتجع أكبر من المشتراة');
+        if (qtyOf(item(s, l.itemId), inv.whId) < r.qty * l.factor) fail('الكمية المتاحة في المخزن أقل من كمية المرتجع');
+        amount += Math.round(r.qty * l.cost * (inv.total / inv.linesNet));
+      }
+      for (const r of rl) { const l = inv.lines[r.idx]; l.returned += r.qty; stockOut(item(s, l.itemId), inv.whId, r.qty * l.factor); }
+      let reduce = 0; const d = s.debts.find((x) => x.src === 'purchase' && x.srcId === inv.id); if (d) reduce = Math.min(amount, debtRemaining(d));
+      if (reduce > 0) { d.paid += reduce; d.pays.push({ kind: 'return', amount: reduce, at: nowIso(), ref: o.key }); }
+      if (amount - reduce > 0) postTx(s, methodAcc(s, o), amount - reduce, 'purchase_return', 'PR-' + o.key, inv.no, actor);
+      const ret = { id: nid(s), purId: inv.id, at: o.at || nowIso(), amount, by: actor }; s.purchaseReturns.push(ret); addLog(s, actor, 'PURCHASE_RETURN', inv.no + ' ' + amount); return ret;
+    } catch (e) { delete s.keys[o.key]; throw e; }
+  }
+
+  // ================= المصروفات والإيرادات =================
+  function addExpense(s, o, actor) {
+    if (!isInt(o.amount)) fail('المبلغ يجب أن يكون أكبر من صفر'); if (!(o.cat || '').trim()) fail('اختر تصنيف المصروف');
+    if (!['cash', 'bank', 'credit'].includes(o.method)) fail('طريقة الدفع غير صحيحة'); claim(s, o.key);
+    try {
+      const at = o.at || nowIso(), e = { id: nid(s), at, cat: o.cat, amount: o.amount, method: o.method, note: o.note || '', payee: o.payee || '', by: actor };
+      if (o.method === 'credit') { if (!(o.payee || '').trim()) fail('اكتب اسم الجهة للمصروف الآجل'); e.debtId = createDebt(s, { kind: 'payable', label: o.payee.trim(), principal: o.amount, due: o.due, src: 'expense', srcId: e.id, at }).id; }
+      else { const acc = methodAcc(s, o); needFunds(s, acc, o.amount); postTx(s, acc, -o.amount, 'expense', 'E-' + o.key, o.cat, actor, at); }
+      s.expenses.push(e); addLog(s, actor, 'EXPENSE', o.cat + ' ' + o.amount); return e;
+    } catch (er) { delete s.keys[o.key]; throw er; }
+  }
+  function addRevenue(s, o, actor) {
+    if (!isInt(o.amount)) fail('المبلغ يجب أن يكون أكبر من صفر'); if (!(o.cat || '').trim()) fail('اختر نوع الإيراد'); if (!['cash', 'bank'].includes(o.method)) fail('طريقة الاستلام غير صحيحة'); claim(s, o.key);
+    try { const at = o.at || nowIso(); postTx(s, methodAcc(s, o), o.amount, 'revenue', 'RV-' + o.key, o.cat, actor, at); const r = { id: nid(s), at, cat: o.cat, amount: o.amount, method: o.method, note: o.note || '', by: actor }; s.revenues.push(r); return r; }
+    catch (er) { delete s.keys[o.key]; throw er; }
+  }
+  function addRecurring(s, o, actor) { if (!isInt(o.amount) || !(o.cat || '').trim()) fail('بيانات المصروف المتكرر غير كاملة'); const d = Number(o.day); if (!(d >= 1 && d <= 28)) fail('يوم الشهر بين 1 و28'); const r = { id: nid(s), cat: o.cat, amount: o.amount, method: o.method || 'cash', day: d, note: o.note || '', last: '' }; s.recurring.push(r); addLog(s, actor, 'ADD_RECURRING', o.cat); return r; }
+  function dueRecurring(s, today) { const ym = today.slice(0, 7), day = Number(today.slice(8, 10)); return s.recurring.filter((r) => r.last !== ym && day >= r.day); }
+  function postRecurring(s, id, today, actor) { const r = s.recurring.find((x) => x.id === Number(id)); if (!r) fail('غير موجود'); const ym = today.slice(0, 7); if (r.last === ym) fail('سُجّل هذا الشهر'); addExpense(s, { cat: r.cat, amount: r.amount, method: r.method, note: r.note || 'متكرر', key: 'REC-' + r.id + '-' + ym, at: today + 'T12:00:00.000Z', bankAccId: (s.accounts.find((a) => a.type === 'bank') || {}).id }, actor); r.last = ym; }
+
+  // ================= التقارير =================
+  const inRange = (at, from, to) => { const d = String(at).slice(0, 10); return (!from || d >= from) && (!to || d <= to); };
+  function report(s, from, to) {
+    const R = (a) => a.filter((x) => inRange(x.at, from, to)), sum = (a, f) => a.reduce((t, x) => t + f(x), 0);
+    const sales = R(s.sales), rets = R(s.salesReturns), purs = R(s.purchases), pret = R(s.purchaseReturns), exps = R(s.expenses), revs = R(s.revenues), adj = R(s.adjustments);
+    const salesTotal = sum(sales, (x) => x.total), cogs = sum(sales, (x) => sum(x.lines, (l) => l.qty * l.factor * l.cost));
+    const retAmt = sum(rets, (x) => x.amount), retCost = sum(rets, (x) => x.cost), netSales = salesTotal - retAmt, cogsNet = cogs - retCost, gross = netSales - cogsNet;
+    const byCat = {}; exps.forEach((e) => { byCat[e.cat] = (byCat[e.cat] || 0) + e.amount; });
+    const expTotal = sum(exps, (x) => x.amount), revTotal = sum(revs, (x) => x.amount);
+    const badRecov = sum(s.debts, (d) => sum(d.pays.filter((p) => p.kind === 'recovery' && inRange(p.at, from, to)), (p) => p.amount));
+    const woff = sum(s.debts.filter((d) => d.woAt && inRange(d.woAt, from, to) && d.kind === 'receivable'), (d) => d.writtenOff);
+    const invLoss = sum(adj.filter((a) => a.kind === 'damaged' || a.kind === 'expired' || (a.kind === 'stocktake' && a.qty < 0)), (a) => Math.abs(a.qty) * a.cost);
+    const punct = sum(R(s.liquidations), (l) => l.shopNet);
+    const net = gross + revTotal + badRecov + punct - expTotal - invLoss - woff;
+    return { from, to, salesCount: sales.length, salesTotal, retAmt, netSales, cogsNet, gross, purchasesTotal: sum(purs, (x) => x.total) - sum(pret, (x) => x.amount), expTotal, expByCat: byCat, revTotal, badRecov, woff, invLoss, punct, net };
+  }
+  function inventoryReport(s) { return s.items.filter((i) => i.cat !== CAT_PUNCT || true).map((i) => ({ id: i.id, name: i.name, qty: totalQty(i), value: Math.round(totalQty(i) * i.avg), low: isLow(i) })); }
+  function debtsReport(s, today) { const b = { recv: 0, pay: 0, aging: [0, 0, 0, 0, 0] }; s.debts.forEach((d) => { const r = debtRemaining(d); if (d.kind === 'receivable') { b.recv += r; b.aging[agingBucket(d, today)] += r; } else b.pay += r; }); return b; }
+  function toCSV(rows) { return '﻿' + rows.map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n'); }
+  function soldPerDay(s, itemId, today, days) { const out = Array(days).fill(0), t = Date.parse(today); s.sales.forEach((v) => { const k = Math.floor((t - Date.parse(v.at.slice(0, 10))) / 864e5); if (k >= 0 && k < days) v.lines.forEach((l) => { if (l.itemId === Number(itemId)) out[k] += l.qty * l.factor; }); }); return out; }
+  function advise(sold, onHand, lead, cover) { const tot = sold.reduce((a, b) => a + b, 0), avg = tot / sold.length; if (avg === 0) return { avg: 0, daysLeft: null, qty: 0, now: false }; const daysLeft = Math.floor(onHand / avg), qty = Math.max(0, Math.ceil(avg * (lead + cover)) - onHand); return { avg, daysLeft, qty, now: daysLeft <= lead }; }
+
+  // ================= الإشعارات =================
+  function notifications(s, today) {
+    const n = [];
+    s.items.filter(isLow).forEach((i) => n.push({ t: 'stock', m: 'نقص مخزون: ' + i.name + ' (' + totalQty(i) + ')', go: 'items' }));
+    s.debts.filter((d) => d.kind === 'receivable' && agingBucket(d, today) > 0).forEach((d) => n.push({ t: 'debt', m: 'دين مستحق متأخر: ' + ((s.parties.find((p) => p.id === d.partyId) || {}).name || '') + ' ' + debtRemaining(d), go: 'debts' }));
+    s.debts.filter((d) => d.kind === 'payable' && agingBucket(d, today) > 0).forEach((d) => n.push({ t: 'debt', m: 'مستحق للدفع متأخر: ' + (d.label || ((s.parties.find((p) => p.id === d.partyId) || {}).name || '')) + ' ' + debtRemaining(d), go: 'debts' }));
+    dueRecurring(s, today).forEach((r) => n.push({ t: 'recur', m: 'مصروف متكرر مستحق: ' + r.cat + ' ' + r.amount, go: 'money' }));
+    if (!s.days.some((d) => d.date === today) && new Date().getHours() >= 18) n.push({ t: 'puncture', m: 'تذكير: لم يُسجَّل دخل البنشر اليوم', go: 'puncture' });
+    if (openBalance(s) >= THRESHOLD) n.push({ t: 'puncture', m: 'رصيد البنشر بلغ حد التصفية', go: 'puncture' });
+    return n;
+  }
+
+  // ================= المستخدمون والصلاحيات =================
+  const PERMS = { sales: 'المبيعات', purchases: 'المشتريات', inventory: 'المخزون', prices: 'الأسعار', discounts: 'الخصومات', expenses: 'المصروفات', revenues: 'الإيرادات', reports: 'التقارير', profits: 'الأرباح', cash: 'النقدية', banks: 'البنوك', debts: 'الديون', liquidation: 'التصفية', puncture_dist: 'توزيع البنشر', approve: 'اعتماد الفواتير', returns: 'المرتجعات', people: 'العمال والموظفين', users: 'إدارة المستخدمين' };
+  function can(u, p) { if (!u || !u.active) return false; if (u.role === 'owner') return true; return p !== 'users' && (u.perms || []).includes(p); }
+  function addUser(s, o, actor) {
+    const name = (o.name || '').trim(); if (!name) fail('اسم المستخدم مطلوب'); if (s.users.some((u) => u.name === name)) fail('الاسم مستخدم');
+    if (o.role === 'owner' && s.users.some((u) => u.role === 'owner')) fail('يوجد مالك رئيسي واحد فقط');
+    const u = { id: nid(s), name, role: o.role === 'owner' ? 'owner' : 'staff', perms: o.perms || [], active: true, salt: o.salt, hash: o.hash, recSalt: o.recSalt || '', recHash: o.recHash || '' };
+    s.users.push(u); addLog(s, actor, 'ADD_USER', name); return u;
+  }
+  function modifyUser(s, actor, targetId, patch) {
+    const t = s.users.find((u) => u.id === Number(targetId)); if (!t) fail('المستخدم غير موجود');
+    if (actor.role !== 'owner') fail('إدارة الحسابات للمالك فقط'); if (t.role === 'owner' && patch.active === false) fail('لا يمكن إيقاف حساب المالك');
+    if (patch.active !== undefined) t.active = patch.active; if (patch.perms && t.role !== 'owner') t.perms = patch.perms; if (patch.salt) { t.salt = patch.salt; t.hash = patch.hash; }
+    addLog(s, actor.name, 'MODIFY_USER', t.name + ' ' + JSON.stringify({ active: patch.active, perms: patch.perms })); return t;
+  }
+
+  // ================= المساعد المجاني (بلا ذكاء اصطناعي خارجي) =================
+  const NUMW = { 'واحد': 1, 'واحده': 1, 'اثنين': 2, 'اتنين': 2, 'ثنتين': 2, 'ثلاثه': 3, 'تلاته': 3, 'ثلاث': 3, 'اربعه': 4, 'اربع': 4, 'خمسه': 5, 'خمس': 5, 'سته': 6, 'ست': 6, 'سبعه': 7, 'سبع': 7, 'ثمانيه': 8, 'تمانيه': 8, 'تسعه': 9, 'تسع': 9, 'عشره': 10, 'عشر': 10 };
+  function norm(t) { let o = ''; for (const c of String(t)) { if (c >= '٠' && c <= '٩') o += String.fromCharCode(48 + c.charCodeAt(0) - 1632); else if ((c >= 'ً' && c <= 'ٟ') || c === 'ـ') continue; else if ('أإآ'.includes(c)) o += 'ا'; else if (c === 'ة') o += 'ه'; else if (c === 'ى') o += 'ي'; else o += c; } return o.trim(); }
+  function stem(t) { if (t.startsWith('ال') && t.length > 3) t = t.slice(2); if (t.length > 4 && (t.endsWith('ات') || t.endsWith('ون') || t.endsWith('ين'))) t = t.slice(0, -2); return t; }
+  function lev(a, b) { let p = Array.from({ length: b.length + 1 }, (_, j) => j); for (let i = 1; i <= a.length; i++) { const c = [i]; for (let j = 1; j <= b.length; j++) c[j] = Math.min(c[j - 1] + 1, p[j] + 1, p[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); p = c; } return p[b.length]; }
+  function tokMatch(sp, it) { const a = stem(sp), b = stem(it), m = Math.min(a.length, b.length), allow = m >= 7 ? 2 : m >= 3 ? 1 : 0; return lev(a, b) <= allow || (a.length >= 3 && b.startsWith(a)); }
+  function matchItems(spoken, names) { const sp = norm(spoken).split(/\s+/), found = [], exact = []; for (const n of names) { const it = norm(n).split(/\s+/); if (sp.every((x) => it.some((t) => tokMatch(x, t)))) { found.push(n); if (norm(n) === norm(spoken)) exact.push(n); } } return exact.length === 1 ? exact : found; }
+  function parseCommand(text, names) {
+    const d = { intent: 'UNKNOWN', pay: null, customer: '', lines: [] }, n = norm(text), all = ' ' + n + ' ', toks = [];
+    for (const t of n.split(/\s+/)) { if (t.length > 1 && t[0] === 'و' && (/^\d+$/.test(t.slice(1)) || NUMW[t.slice(1)])) { toks.push('و', t.slice(1)); } else toks.push(t); }
+    if (all.includes('مبيعات اليوم') || all.includes('بعنا اليوم')) { d.intent = 'QUERY_TODAY_SALES'; return d; }
+    if (all.includes('ناقص') || all.includes('الناقص') || all.includes('خلصت') || all.includes('نقص')) { d.intent = 'QUERY_LOW_STOCK'; return d; }
+    if (all.includes('رصيد')) { d.intent = 'QUERY_CUSTOMER_BALANCE'; d.customer = toks.slice(toks.indexOf('رصيد') + 1).join(' ').trim(); return d; }
+    const f = toks[0] || '';
+    if (f.startsWith('بعت') || f === 'بيع' || f.startsWith('بعنا')) d.intent = 'SALE'; else if (f.startsWith('اشتري') || f.startsWith('شري') || f === 'شراء') d.intent = 'PURCHASE'; else return d;
+    let q = 0, name = [], inCust = false; const cust = [];
+    const flush = () => { if (q > 0 && name.length) d.lines.push({ qty: q, spoken: name.join(' '), candidates: matchItems(name.join(' '), names) }); q = 0; name = []; };
+    for (let i = 1; i < toks.length; i++) {
+      const t = toks[i]; if (inCust) { cust.push(t); continue; }
+      if (['نقدا', 'نقدي', 'كاش'].includes(t)) { flush(); d.pay = 'cash'; continue; }
+      if (['بنكي', 'بنك', 'بنكك', 'بنكيا'].includes(t)) { flush(); d.pay = 'bank'; continue; }
+      if (['اجل', 'دين'].includes(t)) { flush(); d.pay = 'credit'; continue; }
+      if (['زبون', 'للزبون', 'لزبون'].includes(t)) { flush(); inCust = true; continue; }
+      if (t === 'و') { flush(); continue; }
+      const num = /^\d+$/.test(t) ? parseInt(t, 10) : NUMW[t];
+      if (num !== undefined && !name.length) { q = num; continue; } if (q > 0) name.push(t);
+    }
+    flush(); d.customer = cust.join(' ').trim(); d.ready = d.lines.length > 0 && d.lines.every((l) => l.candidates.length === 1); return d;
+  }
+
+  return { THRESHOLD, TYPES, PERMS, CAT_PUNCT, newState, split, distributeWorkers, addPerson, balance, addEntry, openDays, openTotals, openBalance, recordDay, addSupplies, liquidate, exportJSON, importJSON, person,
+    cashAcc, account, accBalance, postTx, addAccount, deposit, withdraw, bankFee, transfer, reconcile, addParty, party, item, qtyOf, totalQty, addItem, updateItem, addWarehouse, isLow, transferStock, stocktake, writeOffStock,
+    consumePunctureSupply, addContainer, debtRemaining, debt, partyBalance, payDebt, payParty, writeOffDebt, recoverBadDebt, offsetDebts, agingBucket, installments, createSale, returnSale, createPurchase, returnPurchase,
+    addExpense, addRevenue, addRecurring, dueRecurring, postRecurring, report, inventoryReport, debtsReport, toCSV, soldPerDay, advise, notifications, can, addUser, modifyUser, parseCommand, matchItems, norm };
+})();
+
+
+const KEY = 'espirati.state.v1';
+const esc = (t) => String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmt = (n) => Number(n || 0).toLocaleString('en-US') + ' ج.س';
+const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const N = (v) => { const x = parseInt(String(v == null ? '' : v).replace(/[^\d]/g, ''), 10); return isNaN(x) ? 0 : x; };
+const $ = (id) => document.getElementById(id);
+const val = (id) => ($(id) || {}).value || '';
+const KIND = { worker: 'عامل بنشر', employee: 'موظف', chief: 'كبير الموظفين' };
+const newCart = () => ({ lines: [], party: '', cash: '', bank: '', ref: '', bacc: '', disc: '', due: '', wh: '' });
+let S = load(), cur = null, tab = 'home', view = '', msg = null, hiddenAt = 0, sub = '';
+let loginUser = 0, carts = { sale: newCart(), purchase: newCart() }, lastRes = [];
+const fk = {}; const K = (n) => fk[n] || (fk[n] = uid());
+
+function load() { try { const t = localStorage.getItem(KEY); if (t) return L.importJSON(t); } catch (e) {} return L.newState(); }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch (e) { msg = { t: 'err', m: 'تعذر حفظ البيانات: ' + e.message }; return false; } }
+function applyTheme() { const t = S.settings.theme; if (t === 'dark') document.documentElement.dataset.theme = 'dark'; else document.documentElement.removeAttribute('data-theme'); }
+const need = (p) => L.can(cur, p);
+const who = () => cur ? cur.name : 'النظام';
+const banner = () => msg ? '<div class="note ' + msg.t + '">' + esc(msg.m) + '</div>' : '';
+const paintMsg = () => { const m = $('msg'); if (m) { m.innerHTML = banner(); window.scrollTo(0, 0); } };
+const denied = () => '<div class="note err">لا تملك صلاحية فتح هذا القسم.</div>';
+
+/** تنفيذ عملية: صلاحية → منطق → حفظ. عند أي خطأ تُستعاد البيانات كما كانت (لا أثر جزئي). */
+function act(perm, fn, kn) {
+  const snap = JSON.stringify(S);
+  try {
+    if (perm && !need(perm)) throw new Error('لا تملك صلاحية تنفيذ هذه العملية');
+    const r = fn();
+    if (!save()) { S = JSON.parse(snap); paintMsg(); return false; }
+    if (kn) delete fk[kn];
+    msg = r ? { t: 'okm', m: r } : null; render(); return true;
+  } catch (e) { S = JSON.parse(snap); msg = { t: 'err', m: e.message }; paintMsg(); return false; }
+}
+
+// ---------- الأمان: PIN ----------
+async function hashPin(pin, salt) {
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, ['deriveBits']);
+  const b = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode(salt), iterations: 100000 }, k, 256);
+  return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
+const rnd = (n) => [...crypto.getRandomValues(new Uint8Array(n))].map((x) => x.toString(16).padStart(2, '0')).join('');
+const goodPin = (p) => /^\d{4,8}$/.test(p);
+
+function setupScreen() {
+  return '<div class="card"><h2>إعداد أول مرة: حساب المالك</h2><div class="mut">هذا الحساب يملك كل الصلاحيات ولا يستطيع الموظفون تعديله.</div><input id="su_name" placeholder="اسم المالك"><input id="su_pin" inputmode="numeric" type="password" placeholder="رمز PIN (4 إلى 8 أرقام)"><input id="su_pin2" inputmode="numeric" type="password" placeholder="أعد كتابة الرمز"><button onclick="A.setup()">إنشاء الحساب</button></div><div class="card"><h2>عندك نسخة احتياطية؟</h2><input type="file" accept=".json" onchange="A.restore(this)"></div>';
+}
+function loginScreen() {
+  const us = S.users.filter((u) => u.active);
+  return banner() + '<div class="card"><h2>تسجيل الدخول</h2><select id="lg_u">' + us.map((u) => '<option value="' + u.id + '"' + (u.id === loginUser ? ' selected' : '') + '>' + esc(u.name) + '</option>').join('') + '</select><input id="lg_pin" inputmode="numeric" type="password" placeholder="رمز PIN"><button onclick="A.login()">دخول</button></div>' +
+    '<div class="card"><h2>نسيت الرمز؟ (المالك)</h2><input id="rc_code" placeholder="رمز الاسترداد"><input id="rc_pin" inputmode="numeric" type="password" placeholder="رمز PIN جديد"><button class="sec" onclick="A.recover()">استرداد</button></div>';
+}
+
+// ---------- أدوات عرض ----------
+const opt = (arr, sel) => arr.map(([v, t]) => '<option value="' + esc(v) + '"' + (String(v) === String(sel) ? ' selected' : '') + '>' + esc(t) + '</option>').join('');
+const row = (a, b, click) => '<div class="row"' + (click ? ' style="cursor:pointer" onclick="' + click + '"' : '') + '><span>' + a + '</span><b>' + b + '</b></div>';
+const card = (h, body) => '<div class="card">' + (h ? '<h2>' + h + '</h2>' : '') + body + '</div>';
+const inp = (id, ph, v, mode) => '<input id="' + id + '" placeholder="' + esc(ph) + '"' + (mode === 'num' ? ' inputmode="numeric"' : '') + ' value="' + esc(v || '') + '">';
+const banks = () => S.accounts.filter((a) => a.type === 'bank');
+const bankSel = (id, sel) => '<select id="' + id + '">' + opt(banks().map((b) => [b.id, b.name]), sel) + '</select>';
+const pname = (id) => { const p = S.parties.find((x) => x.id === id); return p ? p.name : ''; };
+
+// ---------- الرئيسية ----------
+function home() {
+  const t = L.openTotals(S), pct = Math.min(100, Math.round(t.gross * 100 / L.THRESHOLD)), last = S.settings.lastBackup, d = today();
+  const days = last ? (Date.now() - new Date(last)) / 864e5 : null, nts = L.notifications(S, d);
+  const sTod = S.sales.filter((x) => x.at.slice(0, 10) === d).reduce((a, x) => a + x.total, 0), pTod = S.purchases.filter((x) => x.at.slice(0, 10) === d).reduce((a, x) => a + x.total, 0);
+  const low = S.items.filter(L.isLow).length;
+  let h = '';
+  if (need('users') && (days === null || days > 3)) h += '<div class="note warn">' + (days === null ? 'لم تأخذ نسخة احتياطية بعد.' : 'مرّت ' + Math.floor(days) + ' أيام منذ آخر نسخة احتياطية.') + ' <a onclick="A.go(\'settings\')" style="text-decoration:underline">خذ نسخة الآن</a></div>';
+  if (t.gross >= L.THRESHOLD) h += '<div class="note warn">🔔 رصيد البنشر بلغ حد التصفية وينتظر اعتمادك.</div>';
+  h += '<div class="grid">';
+  if (need('cash')) h += '<div class="card"><div class="mut">رصيد النقدية</div><div class="big">' + fmt(L.accBalance(S, L.cashAcc(S).id)) + '</div></div>';
+  if (need('banks')) h += '<div class="card"><div class="mut">رصيد البنك</div><div class="big">' + fmt(banks().reduce((a, b) => a + L.accBalance(S, b.id), 0)) + '</div></div>';
+  if (need('sales')) h += '<div class="card"><div class="mut">مبيعات اليوم</div><div class="big">' + fmt(sTod) + '</div></div>';
+  if (need('purchases')) h += '<div class="card"><div class="mut">مشتريات اليوم</div><div class="big">' + fmt(pTod) + '</div></div>';
+  h += '</div>';
+  h += '<div class="card"><div class="row"><span>البضائع الناقصة</span><b class="' + (low ? 'low' : '') + '">' + low + '</b></div>' + (low ? '<button class="sec" onclick="A.go(\'items\')">عرض الناقص</button>' : '') + '</div>';
+  h += '<div class="card"><h2>رصيد البنشر (حسابي)</h2><div class="big">' + fmt(t.gross) + '</div><div class="bar"><i style="width:' + pct + '%"></i></div><div class="mut">الحد ' + fmt(L.THRESHOLD) + '</div></div>';
+  h += '<div class="card"><h2>اختصارات</h2><div class="grid"><button onclick="A.go(\'sales\')">بيع جديد</button><button onclick="A.go(\'purchases\')">شراء جديد</button><button class="sec" onclick="A.go(\'puncture\')">البنشر</button><button class="sec" onclick="A.go(\'more\')">كل الأقسام</button></div></div>';
+  return h;
+}
+function more() {
+  const b = (t, k) => '<button class="sec" onclick="A.go(\'' + k + '\')">' + t + '</button>';
+  return card('الأقسام', '<div class="grid">' + b('المشتريات', 'purchases') + b('الأطراف (زبائن/موردون)', 'parties') + b('الديون', 'debts') + b('الخزينة والمصروفات', 'money') + b('البنشر', 'puncture') + b('العمال والموظفون', 'people') + b('التقارير', 'reports') + b('الإشعارات', 'notes') + b('الإعدادات', 'settings') + '</div>');
+}
+
+// ---------- سلة البيع والشراء ----------
+const cartKind = () => (tab === 'purchases' ? 'purchase' : 'sale');
+function cartTotals(kind) { const C = carts[kind]; let net = 0; C.lines.forEach((l) => { net += l.qty * l.p - (l.disc || 0); }); const idisc = Math.min(net, N(C.disc)), total = net - idisc, cash = N(C.cash), bank = N(C.bank); return { net, idisc, total, cash, bank, rem: total - cash - bank }; }
+function cartScreen(kind) {
+  const C = carts[kind], isS = kind === 'sale', t = cartTotals(kind);
+  if (!need(isS ? 'sales' : 'purchases')) return denied();
+  const ps = S.parties.filter((p) => p.kind === (isS ? 'customer' : 'supplier'));
+  const lines = C.lines.map((l, i) => {
+    const it = L.item(S, l.itemId);
+    return '<div class="card"><b>' + esc(l.name) + '</b> <span class="mut">(' + esc(l.unit) + ')</span>' +
+      '<div class="row"><span>الكمية</span><span><button class="mini" onclick="A.qty(\'' + kind + '\',' + i + ',-1)">−</button> <b>' + l.qty + '</b> <button class="mini" onclick="A.qty(\'' + kind + '\',' + i + ',1)">+</button></span></div>' +
+      '<div class="row"><span>' + (isS ? 'السعر' : 'التكلفة') + '</span><span>' + fmt(l.p) + ' <button class="mini" onclick="A.price(\'' + kind + '\',' + i + ')">تعديل</button></span></div>' +
+      (isS ? '<div class="row"><span>خصم البند</span><span>' + fmt(l.disc) + ' <button class="mini" onclick="A.ldisc(' + i + ')">تعديل</button></span></div>' : '') +
+      (it.packs.length ? '<button class="sec" onclick="A.unit(\'' + kind + '\',' + i + ')">تغيير الوحدة</button>' : '') +
+      '<button class="sec" onclick="A.rm(\'' + kind + '\',' + i + ')">حذف البند</button></div>';
+  }).join('');
+  const chips = S.items.filter((i) => (i.fav || i.quick) && (!isS || i.cat !== L.CAT_PUNCT)).slice(0, 12).map((i) => '<button class="sec" onclick="A.add(\'' + kind + '\',' + i.id + ')">' + esc(i.name) + '</button>').join('');
+  return '<div id="msg">' + banner() + '</div>' + (view === 'list' ? '' : '') +
+    '<div class="tabs"><button ' + (view !== 'list' ? '' : 'class="sec"') + ' onclick="A.view(\'\')">' + (isS ? 'فاتورة بيع' : 'فاتورة شراء') + '</button><button ' + (view === 'list' ? '' : 'class="sec"') + ' onclick="A.view(\'list\')">السجل</button></div>' +
+    '<div class="card"><input id="q" placeholder="ابحث بالاسم أو الكود أو الباركود" oninput="A.search(\'' + kind + '\',this.value)"><div id="res" class="chips">' + chips + '</div></div>' + lines +
+    '<div class="card"><div class="row"><span>الإجمالي</span><b id="tot">' + fmt(t.total) + '</b></div>' +
+    '<input id="c_disc" placeholder="خصم على الفاتورة" inputmode="numeric" value="' + esc(C.disc) + '" oninput="A.pay(\'' + kind + '\')">' +
+    '<select id="c_party" onchange="A.pay(\'' + kind + '\')"><option value="">' + (isS ? '— زبون نقدي (بدون) —' : '— بدون مورد —') + '</option>' + opt(ps.map((p) => [p.id, p.name + (p.phone ? ' ' + p.phone : '')]), C.party) + '</select>' +
+    '<input id="c_cash" placeholder="المدفوع نقداً" inputmode="numeric" value="' + esc(C.cash) + '" oninput="A.pay(\'' + kind + '\')">' +
+    '<input id="c_bank" placeholder="المدفوع بنكياً" inputmode="numeric" value="' + esc(C.bank) + '" oninput="A.pay(\'' + kind + '\')">' +
+    (banks().length ? bankSel('c_bacc', C.bacc).replace('<select ', '<select onchange="A.pay(\'' + kind + '\')" ') : '<div class="mut">لا يوجد حساب بنكي (أضفه من الخزينة)</div>') +
+    '<input id="c_ref" placeholder="رقم العملية البنكية (إلزامي عند الدفع البنكي)" value="' + esc(C.ref) + '" oninput="A.pay(\'' + kind + '\')">' +
+    '<div class="row"><span>المتبقي (آجل)</span><b id="rem">' + fmt(Math.max(0, t.rem)) + '</b></div>' +
+    '<input id="c_due" type="date" value="' + esc(C.due) + '" onchange="A.pay(\'' + kind + '\')"><div class="mut">تاريخ استحقاق الآجل (اختياري)</div>' +
+    '<div class="grid"><button class="sec" onclick="A.full(\'' + kind + '\',\'cash\')">نقداً كامل</button><button class="sec" onclick="A.full(\'' + kind + '\',\'bank\')">بنكي كامل</button></div>' +
+    '<button onclick="A.save(\'' + kind + '\')">' + (isS ? 'حفظ فاتورة البيع' : 'حفظ فاتورة الشراء') + '</button></div>' +
+    (view === 'list' ? '' : '');
+}
+function sales() { if (view === 'list') return docList('sale'); if (view.startsWith('inv:')) return invoiceView(+view.slice(4), 'sale'); return cartScreen('sale'); }
+function purchases() { if (view === 'list') return docList('purchase'); if (view.startsWith('inv:')) return invoiceView(+view.slice(4), 'purchase'); return cartScreen('purchase'); }
+function docList(kind) {
+  const a = (kind === 'sale' ? S.sales : S.purchases).slice(-40).reverse();
+  return '<div id="msg">' + banner() + '</div><div class="tabs"><button class="sec" onclick="A.view(\'\')">فاتورة جديدة</button><button>السجل</button></div>' +
+    card('آخر الفواتير', a.map((x) => row(x.no + ' · ' + x.at.slice(0, 10) + ' ' + esc(pname(kind === 'sale' ? x.customerId : x.supplierId)), fmt(x.total), 'A.view(\'inv:' + x.id + '\')')).join('') || '<div class="mut">لا توجد فواتير</div>');
+}
+function invoiceView(id, kind) {
+  const inv = (kind === 'sale' ? S.sales : S.purchases).find((x) => x.id === id); if (!inv) return '<div class="note err">الفاتورة غير موجودة</div>';
+  const isS = kind === 'sale', party = pname(isS ? inv.customerId : inv.supplierId);
+  const tr = inv.lines.map((l) => '<tr><td>' + esc(l.name) + '</td><td>' + l.qty + ' ' + esc(l.unit) + '</td><td>' + fmt(isS ? l.price : l.cost) + '</td><td>' + fmt(l.qty * (isS ? l.price : l.cost) - (l.disc || 0)) + '</td></tr>').join('');
+  const rets = inv.lines.map((l, i) => '<div class="row"><span>' + esc(l.name) + ' (متاح للإرجاع ' + (l.qty - l.returned) + ')</span><input id="rq' + i + '" inputmode="numeric" style="width:90px" placeholder="0"></div>').join('');
+  return '<div id="msg">' + banner() + '</div><button class="sec noprint" onclick="A.view(\'list\')">رجوع للسجل</button>' +
+    '<div class="card invoice"><h2>' + esc(S.settings.shopName || 'ESPIRATI') + '</h2><div class="mut">' + (isS ? 'فاتورة بيع' : 'فاتورة شراء') + ' ' + inv.no + ' · ' + inv.at.slice(0, 16).replace('T', ' ') + '</div>' + (party ? '<div>' + (isS ? 'الزبون' : 'المورد') + ': ' + esc(party) + '</div>' : '') +
+    '<table><tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>المجموع</th></tr>' + tr + '</table>' +
+    (inv.discount ? row('خصم', fmt(inv.discount)) : '') + row('الإجمالي', fmt(inv.total)) + (inv.cash ? row('مدفوع نقداً', fmt(inv.cash)) : '') + (inv.bank ? row('مدفوع بنكياً (' + esc(inv.bankRef) + ')', fmt(inv.bank)) : '') + row('المتبقي', fmt(inv.credit)) + '</div>' +
+    '<div class="card noprint"><div class="grid"><button onclick="window.print()">طباعة / PDF</button><button class="sec" onclick="A.wa(\'' + kind + '\',' + inv.id + ')">مشاركة واتساب</button></div></div>' +
+    (need('returns') ? '<div class="card noprint"><h2>مرتجع</h2>' + rets + '<select id="rmethod"><option value="cash">رد نقداً من الصندوق</option>' + (banks().length ? '<option value="bank">رد من حساب بنكي</option>' : '') + '</select>' + (banks().length ? bankSel('rbank') : '') + '<button class="bad" onclick="A.ret(\'' + kind + '\',' + inv.id + ')">تسجيل المرتجع</button></div>' : '');
+}
+let psub = 'customer', msub = 'acc', isub = '', rep = null;
+const PERM_KEYS = Object.keys(L.PERMS);
+const wsel = (id, sel) => '<select id="' + id + '">' + opt(S.warehouses.map((w) => [w.id, w.name]), sel) + '</select>';
+
+// ---------- الأصناف والمخزون ----------
+function itemList(q) {
+  q = L.norm(q || '').toLowerCase();
+  const a = S.items.filter((i) => !q || L.norm(i.name).toLowerCase().includes(q) || (i.code || '').toLowerCase().includes(q) || i.barcode === q);
+  return a.slice(0, 80).map((i) => row(esc(i.name) + ' <span class="pill">' + esc(i.cat) + '</span>', '<span class="' + (L.isLow(i) ? 'low' : '') + '">' + L.totalQty(i) + ' ' + esc(i.unit) + '</span>', 'A.view(\'it:' + i.id + '\')')).join('') || '<div class="mut">لا توجد أصناف</div>';
+}
+function items() {
+  if (!need('inventory')) return denied();
+  if (view.startsWith('it:')) return itemView(+view.slice(3));
+  if (view === 'add') return '<div id="msg">' + banner() + '</div><button class="sec" onclick="A.view(\'\')">رجوع</button>' + card('صنف جديد',
+    inp('i_name', 'اسم الصنف') + inp('i_code', 'الكود') + inp('i_bc', 'الباركود') + '<select id="i_cat">' + opt(S.settings.cats.map((c) => [c, c])) + '</select><select id="i_unit">' + opt(S.settings.units.map((c) => [c, c])) + '</select>' +
+    inp('i_buy', 'سعر الشراء', '', 'num') + inp('i_sell', 'سعر البيع', '', 'num') + inp('i_min', 'الحد الأدنى', '', 'num') + inp('i_open', 'الكمية الافتتاحية (اختياري)', '', 'num') +
+    '<select id="i_sup"><option value="">— المورد (اختياري) —</option>' + opt(S.parties.filter((p) => p.kind === 'supplier').map((p) => [p.id, p.name])) + '</select>' +
+    inp('i_packs', 'وحدات بيع أكبر، مثال: كرتونة=12, دستة=12') + inp('i_notes', 'ملاحظات') + '<button onclick="A.addItem()">حفظ الصنف</button>');
+  const low = S.items.filter(L.isLow);
+  return '<div id="msg">' + banner() + '</div><div class="grid"><button onclick="A.view(\'add\')">صنف جديد</button><button class="sec" onclick="A.view(\'cont\')">العبوات الفارغة</button></div>' +
+    (view === 'cont' ? card('تسجيل عبوة فارغة (يدوياً)', inp('k_type', 'النوع (جركان، كرتونة، برميل)') + inp('k_qty', 'الكمية', '', 'num') + inp('k_price', 'سعر البيع', '', 'num') + inp('k_link', 'الصنف الأصلي (اختياري، اسم)') + wsel('k_wh') + '<button onclick="A.addContainer()">تسجيل</button>') : '') +
+    (low.length ? '<div class="note warn">أصناف ناقصة: ' + low.map((i) => esc(i.name)).join('، ') + '</div>' : '') +
+    '<div class="card"><input id="iq" placeholder="ابحث بالاسم أو الكود أو الباركود" oninput="$(\'ilist\').innerHTML=itemList(this.value)"><div id="ilist">' + itemList('') + '</div></div>';
+}
+function itemView(id) {
+  const it = L.item(S, id), d = today(), adv = L.advise(L.soldPerDay(S, id, d, 30), L.totalQty(it), 3, 14);
+  const bySup = {}; it.priceHist.forEach((h) => { bySup[h.supplierId || 0] = h; });
+  const sup = Object.keys(bySup).map((k) => row(esc(k == 0 ? 'بدون مورد' : pname(+k)), fmt(bySup[k].cost) + ' (' + bySup[k].at.slice(0, 10) + ')')).join('');
+  const ch = it.priceHist.length > 1 ? (() => { const a = it.priceHist[it.priceHist.length - 2].cost, b = it.priceHist[it.priceHist.length - 1].cost; return a ? ((b - a) * 100 / a).toFixed(1) : '0'; })() : null;
+  const punct = it.cat === L.CAT_PUNCT;
+  return '<div id="msg">' + banner() + '</div><button class="sec" onclick="A.view(\'\')">رجوع</button>' +
+    card(esc(it.name), row('التصنيف', esc(it.cat)) + row('الكمية الكلية', L.totalQty(it) + ' ' + esc(it.unit)) + S.warehouses.map((w) => row(esc(w.name), L.qtyOf(it, w.id))).join('') + row('متوسط التكلفة', fmt(Math.round(it.avg))) + row('سعر البيع', fmt(it.sell)) + (ch !== null ? row('تغيّر آخر سعر شراء', ch + '%') : '') +
+      (adv.avg > 0 ? row('معدل البيع اليومي', adv.avg.toFixed(1)) + row('يكفي نحو', adv.daysLeft + ' يوم') + (adv.now ? '<div class="note warn">اقتراح: اطلب ' + adv.qty + ' ' + esc(it.unit) + '</div>' : '') : '<div class="mut">لا توجد مبيعات كافية للتوقع</div>')) +
+    (sup ? card('أسعار الشراء حسب المورد (مقارنة)', sup) : '') +
+    card('تعديل', inp('e_name', 'الاسم', it.name) + inp('e_buy', 'سعر الشراء', it.buy, 'num') + inp('e_sell', 'سعر البيع', it.sell, 'num') + inp('e_min', 'الحد الأدنى', it.min, 'num') + '<button onclick="A.updItem(' + id + ')">حفظ التعديل</button><button class="sec" onclick="A.fav(' + id + ')">' + (it.fav ? 'إزالة من المفضلة والسريعة' : 'إضافة للمفضلة والسريعة') + '</button>') +
+    card('حركات المخزون', wsel('s_wh') + inp('s_qty', 'الكمية / الكمية الفعلية', '', 'num') + inp('s_reason', 'السبب / ملاحظة') + '<div class="grid"><button class="sec" onclick="A.istock(\'count\',' + id + ')">جرد (ضبط الكمية)</button><button class="sec" onclick="A.istock(\'damaged\',' + id + ')">تالف</button><button class="sec" onclick="A.istock(\'expired\',' + id + ')">منتهي الصلاحية</button>' + (punct ? '<button class="sec" onclick="A.istock(\'consume\',' + id + ')">صرف للبنشر</button>' : '') + '</div>' +
+      '<div class="mut" style="margin-top:8px">نقل إلى مخزن آخر:</div>' + wsel('s_to') + '<button class="sec" onclick="A.istock(\'transfer\',' + id + ')">نقل</button>');
+}
+
+// ---------- الأطراف ----------
+function parties() {
+  if (!(need('sales') || need('purchases') || need('debts'))) return denied();
+  if (view.startsWith('p:')) return partyView(+view.slice(2));
+  const list = S.parties.filter((p) => p.kind === psub);
+  return '<div id="msg">' + banner() + '</div><div class="tabs"><button ' + (psub === 'customer' ? '' : 'class="sec"') + ' onclick="A.psub(\'customer\')">الزبائن</button><button ' + (psub === 'supplier' ? '' : 'class="sec"') + ' onclick="A.psub(\'supplier\')">الموردون</button></div>' +
+    card('إضافة ' + (psub === 'customer' ? 'زبون' : 'مورد'), inp('pa_name', 'الاسم') + inp('pa_phone', 'الهاتف') + inp('pa_addr', 'العنوان') + (psub === 'customer' ? inp('pa_lim', 'حد الائتمان (0 = بلا حد)', '', 'num') : inp('pa_rate', 'تقييم المورد (1 إلى 5)', '', 'num')) + inp('pa_notes', 'ملاحظات') + '<button onclick="A.addParty()">إضافة</button>') +
+    card('القائمة', list.map((p) => row(esc(p.name) + (p.fav ? ' ⭐' : '') + (p.rating ? ' <span class="pill">' + p.rating + '/5</span>' : ''), fmt(L.partyBalance(S, p.id)), 'A.view(\'p:' + p.id + '\')')).join('') || '<div class="mut">لا يوجد أحد</div>');
+}
+function partyView(id) {
+  const p = L.party(S, id), isC = p.kind === 'customer', docs = (isC ? S.sales : S.purchases).filter((x) => (isC ? x.customerId : x.supplierId) === id).slice(-15).reverse(), ds = S.debts.filter((d) => d.partyId === id).slice().reverse();
+  return '<div id="msg">' + banner() + '</div><button class="sec" onclick="A.view(\'\')">رجوع</button>' +
+    card(esc(p.name) + ' — ' + (isC ? 'زبون' : 'مورد'), '<div class="mut">' + esc(p.phone) + ' ' + esc(p.address) + '</div><div class="big">' + fmt(L.partyBalance(S, id)) + '</div><div class="mut">' + (isC ? 'المتبقي عليه' : 'المتبقي له') + '</div>' + (isC && p.creditLimit ? row('حد الائتمان', fmt(p.creditLimit)) : '') + (!isC ? '<button class="sec" onclick="A.favParty(' + id + ')">' + (p.fav ? 'إزالة من المفضلين' : 'مورد مفضل') + '</button>' : '')) +
+    (need('debts') && L.partyBalance(S, id) > 0 ? card('تسديد', inp('pp_amt', 'المبلغ', '', 'num') + '<select id="pp_m"><option value="cash">نقداً</option>' + (banks().length ? '<option value="bank">بنكياً</option>' : '') + '</select>' + (banks().length ? bankSel('pp_b') : '') + '<button onclick="A.payParty(' + id + ')">تسجيل الدفعة</button>') : '') +
+    card('كشف الحساب: الديون', ds.map((d) => row('#' + d.id + ' ' + d.at.slice(0, 10) + (d.writtenOff ? ' (هالك)' : ''), fmt(L.debtRemaining(d)) + ' / ' + fmt(d.principal))).join('') || '<div class="mut">لا توجد ديون</div>') +
+    card('آخر الفواتير', docs.map((x) => row(x.no + ' ' + x.at.slice(0, 10), fmt(x.total), 'A.go(\'' + (isC ? 'sales' : 'purchases') + '\');A.view(\'inv:' + x.id + '\')')).join('') || '<div class="mut">لا توجد فواتير</div>');
+}
+
+// ---------- الديون ----------
+const AGE = ['غير متأخر', 'حتى 30 يوماً', 'حتى 60', 'حتى 90', 'أكثر من 90'];
+function debts() {
+  if (!need('debts')) return denied();
+  const d = today(), open = (k) => S.debts.filter((x) => x.kind === k && L.debtRemaining(x) > 0);
+  if (view.startsWith('d:')) {
+    const x = L.debt(S, +view.slice(2)), rem = L.debtRemaining(x);
+    return '<div id="msg">' + banner() + '</div><button class="sec" onclick="A.view(\'\')">رجوع</button>' +
+      card('دين #' + x.id + ' — ' + esc(x.label || pname(x.partyId)), row('النوع', x.kind === 'receivable' ? 'لنا (على زبون)' : 'علينا (لمورد/جهة)') + row('أصل الدين', fmt(x.principal)) + row('المسدد', fmt(x.paid)) + row('المتبقي', fmt(rem)) + row('الاستحقاق', x.due || '—') + row('العمر', AGE[L.agingBucket(x, d)]) + (x.writtenOff ? row('هالك', fmt(x.writtenOff)) + row('المسترد', fmt(x.recovered)) : '')) +
+      (rem > 0 && !x.writtenOff ? card('تسديد', inp('dp_amt', 'المبلغ', '', 'num') + '<select id="dp_m"><option value="cash">نقداً</option>' + (banks().length ? '<option value="bank">بنكياً</option>' : '') + '</select>' + (banks().length ? bankSel('dp_b') : '') + '<button onclick="A.payDebt(' + x.id + ')">تسجيل الدفعة</button><button class="sec" onclick="A.inst(' + x.id + ')">جدول أقساط</button>' + (x.kind === 'receivable' ? '<button class="bad" onclick="A.writeoff(' + x.id + ')">تحويل إلى دين هالك</button>' : '')) : '') +
+      (x.writtenOff && x.writtenOff > x.recovered ? card('استرداد دين هالك', inp('dr_amt', 'المبلغ', '', 'num') + '<button onclick="A.recover2(' + x.id + ')">تسجيل الاسترداد</button>') : '') +
+      card('الدفعات', x.pays.map((p) => row(p.at.slice(0, 10) + ' ' + ({ pay: 'دفعة', recovery: 'استرداد', offset: 'مقاصة', return: 'مرتجع' }[p.kind] || ''), fmt(p.amount))).join('') || '<div class="mut">لا توجد</div>');
+  }
+  const line = (x) => row(esc(x.label || pname(x.partyId)) + ' <span class="pill">' + AGE[L.agingBucket(x, d)] + '</span>', fmt(L.debtRemaining(x)), 'A.view(\'d:' + x.id + '\')');
+  const r = open('receivable'), p = open('payable'), sum = (a) => a.reduce((t, x) => t + L.debtRemaining(x), 0);
+  return '<div id="msg">' + banner() + '</div>' + card('ديون لنا (الزبائن): ' + fmt(sum(r)), r.map(line).join('') || '<div class="mut">لا توجد</div>') + card('ديون علينا (الموردون وغيرهم): ' + fmt(sum(p)), p.map(line).join('') || '<div class="mut">لا توجد</div>') +
+    (r.length && p.length ? card('مقاصة', '<select id="of_r">' + opt(r.map((x) => [x.id, 'لنا: ' + (x.label || pname(x.partyId)) + ' ' + L.debtRemaining(x)])) + '</select><select id="of_p">' + opt(p.map((x) => [x.id, 'علينا: ' + (x.label || pname(x.partyId)) + ' ' + L.debtRemaining(x)])) + '</select>' + inp('of_amt', 'مبلغ المقاصة', '', 'num') + '<button class="sec" onclick="A.offset()">تنفيذ المقاصة</button>') : '');
+}
+
+// ---------- الخزينة والمصروفات والإيرادات ----------
+function money() {
+  if (!(need('cash') || need('banks') || need('expenses') || need('revenues'))) return denied();
+  const tabs = [['acc', 'الحسابات'], ['exp', 'المصروفات'], ['rev', 'الإيرادات'], ['rec', 'المتكررة']];
+  let h = '<div id="msg">' + banner() + '</div><div class="tabs">' + tabs.map((t) => '<button ' + (msub === t[0] ? '' : 'class="sec"') + ' onclick="A.msub(\'' + t[0] + '\')">' + t[1] + '</button>').join('') + '</div>';
+  const accs = S.accounts.filter((a) => (a.type === 'cash' ? need('cash') : need('banks')));
+  if (msub === 'acc') {
+    if (view.startsWith('a:')) { const a = L.account(S, +view.slice(2)); const tx = S.tx.filter((t) => t.accId === a.id).slice(-60).reverse();
+      return h + '<button class="sec" onclick="A.view(\'\')">رجوع</button>' + card(esc(a.name) + ' — ' + fmt(L.accBalance(S, a.id)), tx.map((t) => row(t.at.slice(0, 10) + ' ' + esc(t.kind) + ' ' + esc(t.note), (t.amount > 0 ? '+' : '−') + fmt(Math.abs(t.amount)))).join('') || '<div class="mut">لا توجد حركات</div>'); }
+    h += card('الحسابات', accs.map((a) => row(esc(a.name) + ' <span class="pill">' + (a.type === 'cash' ? 'صندوق' : 'بنك') + '</span>', fmt(L.accBalance(S, a.id)), 'A.view(\'a:' + a.id + '\')')).join(''));
+    const sel = '<select id="m_acc">' + opt(accs.map((a) => [a.id, a.name])) + '</select>';
+    h += card('إيداع / سحب / رسوم', sel + '<select id="m_op"><option value="deposit">إيداع</option><option value="withdraw">سحب</option><option value="fee">رسوم وعمولات بنكية</option></select>' + inp('m_amt', 'المبلغ', '', 'num') + inp('m_note', 'ملاحظة') + '<button onclick="A.acctOp()">تنفيذ</button>');
+    h += card('تحويل بين الحسابات', '<select id="t_from">' + opt(accs.map((a) => [a.id, a.name])) + '</select><select id="t_to">' + opt(accs.map((a) => [a.id, a.name])) + '</select>' + inp('t_amt', 'المبلغ', '', 'num') + '<button class="sec" onclick="A.transfer()">تحويل</button>');
+    h += card('مطابقة الرصيد الفعلي', sel.replace('m_acc', 'r_acc') + inp('r_act', 'الرصيد الفعلي (عدّ الصندوق / كشف البنك)', '', 'num') + '<button class="sec" onclick="A.recon()">مطابقة وتسجيل الفرق</button>');
+    h += card('حساب جديد (بنك أو عهدة)', inp('n_name', 'الاسم') + '<select id="n_type"><option value="bank">حساب بنكي</option><option value="cash">عهدة نقدية مستقلة</option></select><button class="sec" onclick="A.addAcct()">إضافة</button>');
+  } else if (msub === 'exp') {
+    if (!need('expenses')) return h + denied();
+    h += card('مصروف جديد', '<select id="x_cat">' + opt(S.settings.expCats.map((c) => [c, c])) + '</select>' + inp('x_amt', 'المبلغ', '', 'num') + '<select id="x_m"><option value="cash">نقداً</option>' + (banks().length ? '<option value="bank">بنكياً</option>' : '') + '<option value="credit">آجل</option></select>' + (banks().length ? bankSel('x_b') : '') + inp('x_payee', 'الجهة (إلزامي للآجل)') + inp('x_note', 'ملاحظة / رقم إيصال') + '<button onclick="A.expense()">تسجيل المصروف</button>');
+    h += card('آخر المصروفات', S.expenses.slice(-25).reverse().map((e) => row(e.at.slice(0, 10) + ' ' + esc(e.cat) + ' ' + esc(e.note), fmt(e.amount))).join('') || '<div class="mut">لا توجد</div>');
+  } else if (msub === 'rev') {
+    if (!need('revenues')) return h + denied();
+    h += card('إيراد آخر (ليس مبيعات ولا بنشر)', '<select id="v_cat">' + opt(['خدمات', 'عمولات', 'مبالغ مستردة', 'إيرادات متنوعة'].map((c) => [c, c])) + '</select>' + inp('v_amt', 'المبلغ', '', 'num') + '<select id="v_m"><option value="cash">نقداً</option>' + (banks().length ? '<option value="bank">بنكياً</option>' : '') + '</select>' + (banks().length ? bankSel('v_b') : '') + inp('v_note', 'ملاحظة') + '<button onclick="A.revenue()">تسجيل الإيراد</button>');
+    h += card('آخر الإيرادات', S.revenues.slice(-25).reverse().map((e) => row(e.at.slice(0, 10) + ' ' + esc(e.cat), fmt(e.amount))).join('') || '<div class="mut">لا توجد</div>');
+  } else {
+    const due = L.dueRecurring(S, today());
+    h += (due.length ? card('مستحقة هذا الشهر', due.map((r) => row(esc(r.cat) + ' ' + fmt(r.amount), '<button class="mini" onclick="A.postRec(' + r.id + ')">تسجيل</button>')).join('')) : '') +
+      card('مصروف متكرر شهرياً', '<select id="rc_cat">' + opt(S.settings.expCats.map((c) => [c, c])) + '</select>' + inp('rc_amt', 'المبلغ', '', 'num') + inp('rc_day', 'يوم الشهر (1 إلى 28)', '', 'num') + '<button onclick="A.addRec()">إضافة</button>') +
+      card('القائمة', S.recurring.map((r) => row(esc(r.cat) + ' يوم ' + r.day, fmt(r.amount))).join('') || '<div class="mut">لا توجد</div>');
+  }
+  return h;
+}
+
+// ---------- البنشر ----------
+function puncture() {
+  if (!(need('puncture_dist') || need('liquidation'))) return denied();
+  const ws = S.people.filter((p) => p.kind === 'worker' && p.active), t = L.openTotals(S);
+  const form = !need('puncture_dist') ? '' : ws.length ? card('تسجيل دخل اليوم', '<input type="date" id="date" value="' + today() + '">' + inp('gross', 'إجمالي دخل البنشر (ج.س)', '', 'num') + '<div class="mut">الحاضرون اليوم (حتى عاملين):</div>' + ws.map((w) => '<label class="chk"><input type="checkbox" class="wk" value="' + w.id + '">' + esc(w.name) + '</label>').join('') + '<button onclick="A.day()">تسجيل الدخل</button>') : '<div class="note warn">أضف عمال البنشر أولاً من قسم «العمال والموظفون».</div>';
+  const rows = (a) => a.map((x) => row(esc(x[0]), esc(x[1]))).join('');
+  return '<div id="msg">' + banner() + '</div>' + form + card('الرصيد المفتوح', rows([['إجمالي الدخل', fmt(t.gross)], ['العمال 40% (مقيدة يومياً)', fmt(t.w)], ['كبير الموظفين 20%', fmt(t.c)], ['حصة المحل', fmt(t.s)], ['مستلزمات معلّقة', fmt(t.supplies)], ['عجز مرحّل', fmt(t.deficit)], ['صافي المحل بعد التصفية', fmt(Math.max(0, t.net))]])) +
+    (need('puncture_dist') ? card('مستلزمات البنشر', '<div class="mut">تُخصم من حصة المحل فقط. للصرف من المخزون افتح الصنف (تصنيف مستلزمات البنشر) واختر «صرف للبنشر».</div>' + inp('sup', 'تكلفة يدوية (ج.س)', '', 'num') + inp('supn', 'ملاحظة') + '<button class="sec" onclick="A.supplies()">تسجيل المستلزمات</button>') : '') +
+    (need('liquidation') ? card('التصفية', '<div class="mut">لا تتم تلقائياً. حصة العمال لا تُضاف ثانية.</div><button ' + (t.gross >= L.THRESHOLD ? '' : 'disabled') + ' onclick="A.liq(false)">تصفية (عند بلوغ الحد)</button><button class="bad" onclick="A.liq(true)">تصفية مستعجلة</button>') : '') +
+    card('آخر الأيام', S.days.slice(-12).reverse().map((d) => row(d.date + (d.liq ? ' ✓' : ''), fmt(d.gross))).join('') || '<div class="mut">لا توجد</div>') +
+    card('سجل التصفيات', S.liquidations.slice().reverse().map((l) => row(l.at.slice(0, 10) + (l.urgent ? ' مستعجلة: ' + esc(l.reason) : '') + ' — ' + esc(l.approver), 'محل ' + fmt(l.shopNet) + ' | كبير ' + fmt(l.chief))).join('') || '<div class="mut">لا توجد</div>');
+}
+function people() {
+  if (!need('people')) return denied();
+  if (view.startsWith('pe:')) { const id = +view.slice(3), p = L.person(S, id), es = S.entries.filter((e) => e.personId === id).slice().reverse();
+    return '<div id="msg">' + banner() + '</div><button class="sec" onclick="A.view(\'\')">رجوع</button>' + card(esc(p.name) + ' — ' + KIND[p.kind] + (p.active ? '' : ' (موقوف)'), '<div class="mut">' + esc(p.phone) + '</div><div class="big">' + fmt(L.balance(S, id)) + '</div><div class="mut">الرصيد المستحق له</div>' +
+      '<button class="sec" onclick="A.entry(\'ADVANCE\')">تسجيل سلفة</button><button class="sec" onclick="A.entry(\'WITHDRAWAL\')">تسجيل سحب</button><button class="sec" onclick="A.entry(\'PAYMENT\')">تسجيل دفعة تسوية</button>' + (p.kind === 'employee' ? '<button class="sec" onclick="A.entry(\'SALARY_DUE\')">تسجيل راتب مستحق</button>' : '') + '<button class="sec" onclick="A.toggle(' + id + ')">' + (p.active ? 'إيقاف الحساب' : 'تفعيل الحساب') + '</button><div class="mut">السلف والسحوبات والدفعات تخرج من الصندوق. المستحقات غير المدفوعة لا تخصم.</div>') +
+      card('كشف الحساب', es.map((e) => row(e.at.slice(0, 10) + ' ' + L.TYPES[e.type], ((e.type === 'ACCRUAL' || e.type === 'SALARY_DUE') ? '+' : '−') + fmt(e.amount))).join('') || '<div class="mut">لا توجد حركات</div>'); }
+  return '<div id="msg">' + banner() + '</div>' + card('إضافة شخص', inp('pn', 'الاسم') + inp('pp', 'الهاتف') + '<select id="pk"><option value="worker">عامل بنشر</option><option value="employee">موظف</option><option value="chief">كبير الموظفين</option></select><button onclick="A.addPerson()">إضافة</button>') +
+    card('القائمة', S.people.map((p) => row(esc(p.name) + ' <span class="mut">(' + KIND[p.kind] + (p.active ? '' : '، موقوف') + ')</span>', fmt(L.balance(S, p.id)), 'A.view(\'pe:' + p.id + '\')')).join('') || '<div class="mut">لا يوجد أحد</div>');
+}
+
+// ---------- التقارير ----------
+function repHTML(r, label) {
+  const pf = need('profits'), rows = [['عدد فواتير البيع', r.salesCount], ['المبيعات', fmt(r.salesTotal)], ['المرتجعات', fmt(r.retAmt)], ['صافي المبيعات', fmt(r.netSales)], ['المشتريات (صافي)', fmt(r.purchasesTotal)], ['المصروفات', fmt(r.expTotal)], ['إيرادات أخرى', fmt(r.revTotal)], ['استرداد ديون هالكة', fmt(r.badRecov)], ['حصة المحل من البنشر', fmt(r.punct)]];
+  if (pf) rows.push(['تكلفة المبيعات', fmt(r.cogsNet)], ['مجمل الربح', fmt(r.gross)], ['خسائر المخزون (تالف/عجز)', fmt(r.invLoss)], ['ديون هالكة', fmt(r.woff)], ['صافي الربح', fmt(r.net)]);
+  return card(label, rows.map((x) => row(x[0], x[1])).join('') + Object.keys(r.expByCat).map((k) => row('— ' + esc(k), fmt(r.expByCat[k]))).join(''));
+}
+function reports() {
+  if (!need('reports')) return denied();
+  const d = today(), db = L.debtsReport(S, d), inv = L.inventoryReport(S), invVal = inv.reduce((a, x) => a + x.value, 0);
+  let h = '<div id="msg">' + banner() + '</div>' + card('الفترة', '<div class="grid"><input type="date" id="r_from" value="' + (rep ? rep.from : d.slice(0, 8) + '01') + '"><input type="date" id="r_to" value="' + (rep ? rep.to : d) + '"></div><div class="chips"><button class="sec" onclick="A.preset(\'day\')">اليوم</button><button class="sec" onclick="A.preset(\'month\')">هذا الشهر</button><button class="sec" onclick="A.preset(\'year\')">هذه السنة</button></div>' +
+    '<div class="mut" style="margin-top:8px">مقارنة بفترة ثانية (اختياري):</div><div class="grid"><input type="date" id="r_from2"><input type="date" id="r_to2"></div><button onclick="A.report()">عرض التقرير</button>');
+  if (rep) {
+    h += repHTML(rep, 'الفترة: ' + (rep.from || '…') + ' إلى ' + (rep.to || '…'));
+    if (rep.cmp) { h += repHTML(rep.cmp, 'الفترة الثانية: ' + rep.cmp.from + ' إلى ' + rep.cmp.to); if (need('profits')) h += card('الفرق في صافي الربح', row('الفترة الأولى − الثانية', fmt(rep.net - rep.cmp.net))); }
+    h += '<div class="grid noprint"><button class="sec" onclick="A.csv()">تصدير Excel (CSV)</button><button class="sec" onclick="window.print()">طباعة / PDF</button></div>';
+  }
+  h += card('المخزون', row('قيمة المخزون بسعر التكلفة', fmt(invVal)) + row('أصناف ناقصة', inv.filter((x) => x.low).length));
+  h += card('الديون', row('لنا على الزبائن', fmt(db.recv)) + row('علينا', fmt(db.pay)) + AGE.slice(1).map((a, i) => row('— ' + a, fmt(db.aging[i + 1]))).join(''));
+  if (need('cash')) h += card('النقدية والبنوك', S.accounts.map((a) => row(esc(a.name), fmt(L.accBalance(S, a.id)))).join(''));
+  const t = L.openTotals(S);
+  h += card('البنشر والعمال', row('رصيد البنشر المفتوح', fmt(t.gross)) + S.people.map((p) => row(esc(p.name) + ' (' + KIND[p.kind] + ')', fmt(L.balance(S, p.id)))).join(''));
+  return h;
+}
+
+// ---------- الإشعارات والإعدادات ----------
+function notes() { const n = L.notifications(S, today()); return card('الإشعارات (' + n.length + ')', n.map((x) => row(esc(x.m), '<button class="mini" onclick="A.go(\'' + x.go + '\')">فتح</button>')).join('') || '<div class="mut">لا توجد إشعارات</div>'); }
+function settings() {
+  const own = need('users'), last = S.settings.lastBackup;
+  let h = '<div id="msg">' + banner() + '</div>' + (!own ? '' : card('النسخ الاحتياطي', '<div class="mut">بياناتك على هذا الهاتف فقط. أنشئ نسخة وأرسلها إلى Drive أو واتساب أو تيليجرام. ' + (last ? 'آخر نسخة: ' + last.slice(0, 10) : 'لم تؤخذ نسخة بعد.') + '</div><button onclick="A.backup()">إنشاء نسخة احتياطية وإرسالها</button><div class="mut" style="margin-top:10px">استعادة من ملف (تستبدل البيانات الحالية):</div><input type="file" accept=".json" onchange="A.restore(this)">'));
+  h += card('المظهر والمحل', '<select id="th" onchange="A.theme(this.value)">' + opt([['auto', 'تلقائي'], ['light', 'نهاري'], ['dark', 'ليلي']], S.settings.theme) + '</select>' + inp('shop', 'اسم المحل (يظهر في الفاتورة)', S.settings.shopName || '') + '<button class="sec" onclick="A.shop()">حفظ اسم المحل</button>');
+  h += card('الأمان', '<button class="sec" onclick="A.lock()">قفل التطبيق الآن</button>' + inp('np1', 'رمز PIN جديد', '', '') .replace('<input', '<input type="password" inputmode="numeric"') + '<button class="sec" onclick="A.pinChange()">تغيير رمز PIN</button>');
+  if (own) {
+    h += card('المستخدمون والصلاحيات', S.users.map((u) => '<div class="card"><b>' + esc(u.name) + '</b> ' + (u.role === 'owner' ? '<span class="pill">المالك</span>' : (u.active ? '' : '<span class="pill">موقوف</span>')) +
+      (u.role === 'owner' ? '' : '<div class="chips" style="margin:6px 0">' + PERM_KEYS.filter((k) => k !== 'users').map((k) => '<label class="chk" style="width:48%"><input type="checkbox" ' + (u.perms.includes(k) ? 'checked' : '') + ' onchange="A.perm(' + u.id + ',\'' + k + '\',this.checked)">' + esc(L.PERMS[k]) + '</label>').join('') + '</div><div class="grid"><button class="sec" onclick="A.userToggle(' + u.id + ')">' + (u.active ? 'إيقاف الحساب' : 'تفعيل الحساب') + '</button><button class="sec" onclick="A.resetPin(' + u.id + ')">رمز جديد</button></div>') + '</div>').join('') +
+      '<h2>موظف جديد</h2>' + inp('u_name', 'اسم المستخدم') + inp('u_pin', 'رمز PIN').replace('<input', '<input type="password" inputmode="numeric"') + '<button onclick="A.addUser()">إضافة موظف (بلا صلاحيات، أعطه ما يلزم)</button>');
+    h += card('قوائم قابلة للإضافة', inp('l_unit', 'وحدة جديدة') + '<button class="sec" onclick="A.addList(\'units\',\'l_unit\')">إضافة وحدة</button>' + inp('l_cat', 'تصنيف أصناف جديد') + '<button class="sec" onclick="A.addList(\'cats\',\'l_cat\')">إضافة تصنيف</button>' + inp('l_exp', 'تصنيف مصروف جديد') + '<button class="sec" onclick="A.addList(\'expCats\',\'l_exp\')">إضافة تصنيف مصروف</button>' + inp('l_wh', 'مخزن جديد') + '<button class="sec" onclick="A.addWh()">إضافة مخزن</button>');
+    h += card('سجل النشاطات (لا يُحذف)', S.log.slice(-60).reverse().map((l) => '<div class="row"><span>' + l.at.slice(0, 16).replace('T', ' ') + ' · ' + esc(l.actor) + '</span><span>' + esc(l.action) + '</span></div>').join('') || '<div class="mut">لا يوجد</div>');
+  }
+  return h + '<div class="card mut">ملاحظات: قراءة صور الفواتير بالذكاء الاصطناعي غير مضمّنة. الأوامر الصوتية تعتمد على متصفح هاتفك وقد تحتاج إنترنت.</div>';
+}
+// ---------- المساعد ----------
+let aiOut = '';
+function aiSheet() {
+  return '<button class="sec" onclick="A.aiClose()">إغلاق</button><div class="card"><h2>المساعد (نص فقط، بلا حفظ للمحادثات)</h2><div class="mut">مثال: بعت 3 زيوت و2 بوجيه نقداً — مبيعات اليوم — الناقص — رصيد أحمد</div><input id="ai_t" placeholder="اكتب الأمر هنا" onkeydown="if(event.key===\'Enter\')A.aiRun()"><div class="grid"><button onclick="A.aiRun()">تنفيذ</button><button class="sec" onclick="A.aiMic()">🎤 إملاء</button></div></div><div id="ai_out">' + aiOut + '</div>';
+}
+
+// ---------- الأوامر ----------
+const A = {
+  go(t) { tab = t; view = ''; msg = null; render(); window.scrollTo(0, 0); },
+  view(v) { view = v; msg = null; render(); window.scrollTo(0, 0); },
+  psub(v) { psub = v; render(); }, msub(v) { msub = v; view = ''; render(); },
+  lock() { cur = null; tab = 'home'; view = ''; msg = null; render(); },
+  async setup() {
+    try { const n = val('su_name').trim(), p = val('su_pin'); if (!n) throw new Error('الاسم مطلوب'); if (!goodPin(p)) throw new Error('الرمز 4 إلى 8 أرقام'); if (p !== val('su_pin2')) throw new Error('الرمزان غير متطابقين');
+      const salt = rnd(8), rec = rnd(5).toUpperCase(), rs = rnd(8), u = L.addUser(S, { name: n, role: 'owner', salt, hash: await hashPin(p, salt), recSalt: rs, recHash: await hashPin(rec, rs) }, n);
+      S.settings.owner = n; save(); cur = u; msg = { t: 'warn', m: 'رمز الاسترداد (اكتبه في ورقة واحفظه، لن يظهر مرة أخرى): ' + rec }; alert('رمز الاسترداد: ' + rec + '\nاكتبه واحفظه. لن يظهر مرة أخرى.'); render();
+    } catch (e) { msg = { t: 'err', m: e.message }; render(); }
+  },
+  async login() {
+    const u = S.users.find((x) => x.id === +val('lg_u')); loginUser = u ? u.id : 0; if (!u || !u.active) { msg = { t: 'err', m: 'الحساب موقوف' }; return render(); }
+    if ((await hashPin(val('lg_pin'), u.salt)) === u.hash) { cur = u; tab = 'home'; view = ''; msg = null; addLogLogin(u); render(); } else { msg = { t: 'err', m: 'الرمز غير صحيح' }; render(); }
+  },
+  async recover() {
+    const o = S.users.find((u) => u.role === 'owner'); if (!o || !o.recHash) { msg = { t: 'err', m: 'لا يوجد رمز استرداد' }; return render(); }
+    if ((await hashPin(val('rc_code').trim().toUpperCase(), o.recSalt)) !== o.recHash) { msg = { t: 'err', m: 'رمز الاسترداد غير صحيح' }; return render(); }
+    if (!goodPin(val('rc_pin'))) { msg = { t: 'err', m: 'الرمز الجديد 4 إلى 8 أرقام' }; return render(); }
+    o.salt = rnd(8); o.hash = await hashPin(val('rc_pin'), o.salt); save(); cur = o; msg = { t: 'okm', m: 'تم تغيير الرمز' }; render();
+  },
+  async pinChange() { const p = val('np1'); if (!goodPin(p)) { msg = { t: 'err', m: 'الرمز 4 إلى 8 أرقام' }; return paintMsg(); } cur.salt = rnd(8); cur.hash = await hashPin(p, cur.salt); const u = S.users.find((x) => x.id === cur.id); u.salt = cur.salt; u.hash = cur.hash; save(); msg = { t: 'okm', m: 'تم تغيير الرمز' }; render(); },
+  async addUser() { try { if (!need('users')) throw new Error('لا تملك صلاحية'); const p = val('u_pin'); if (!goodPin(p)) throw new Error('الرمز 4 إلى 8 أرقام'); const salt = rnd(8), h = await hashPin(p, salt); act('users', () => { L.addUser(S, { name: val('u_name'), perms: [], salt, hash: h }, who()); return 'تمت الإضافة. حدّد صلاحياته من القائمة.'; }); } catch (e) { msg = { t: 'err', m: e.message }; paintMsg(); } },
+  async resetPin(id) { const p = prompt('رمز PIN جديد (4 إلى 8 أرقام):'); if (!p) return; if (!goodPin(p)) { msg = { t: 'err', m: 'الرمز 4 إلى 8 أرقام' }; return paintMsg(); } const salt = rnd(8), h = await hashPin(p, salt); act('users', () => { L.modifyUser(S, cur, id, { salt, hash: h }); return 'تم تغيير الرمز'; }); },
+  userToggle(id) { act('users', () => { const u = S.users.find((x) => x.id === id); L.modifyUser(S, cur, id, { active: !u.active }); return u.active ? 'تم التفعيل' : 'تم الإيقاف (السجلات محفوظة)'; }); },
+  perm(id, k, on) { act('users', () => { const u = S.users.find((x) => x.id === id), ps = new Set(u.perms); on ? ps.add(k) : ps.delete(k); L.modifyUser(S, cur, id, { perms: [...ps] }); }); },
+  theme(v) { S.settings.theme = v; save(); render(); },
+  shop() { act('users', () => { S.settings.shopName = val('shop').trim(); return 'تم الحفظ'; }); },
+  addList(k, id) { act('users', () => { const v = val(id).trim(); if (!v) throw new Error('اكتب الاسم'); if (S.settings[k].includes(v)) throw new Error('موجود مسبقاً'); S.settings[k].push(v); return 'تمت الإضافة'; }); },
+  addWh() { act('users', () => { L.addWarehouse(S, val('l_wh'), who()); return 'تمت إضافة المخزن'; }); },
+
+  // البيع والشراء
+  search(kind, v) {
+    const q = L.norm(v).toLowerCase(), isS = kind === 'sale';
+    const ok = (i) => !isS || i.cat !== L.CAT_PUNCT;
+    const exact = q && S.items.find((i) => ok(i) && (i.barcode === v.trim() || (i.code && i.code.toLowerCase() === q)));
+    if (exact) { this.add(kind, exact.id); return; }
+    const m = q ? S.items.filter((i) => ok(i) && (L.norm(i.name).toLowerCase().includes(q) || (i.code || '').toLowerCase().includes(q))).slice(0, 10) : S.items.filter((i) => ok(i) && (i.fav || i.quick)).slice(0, 12);
+    $('res').innerHTML = m.map((i) => '<button class="sec" onclick="A.add(\'' + kind + '\',' + i.id + ')">' + esc(i.name) + ' (' + L.totalQty(i) + ')</button>').join('') || '<span class="mut">لا نتائج</span>';
+  },
+  add(kind, id) { const it = L.item(S, id), C = carts[kind], ex = C.lines.find((l) => l.itemId === id && l.factor === 1); if (ex) ex.qty++; else C.lines.push({ itemId: id, name: it.name, qty: 1, factor: 1, unit: it.unit, p: kind === 'sale' ? it.sell : it.buy, disc: 0, pk: -1 }); render(); },
+  qty(kind, i, d) { const C = carts[kind]; C.lines[i].qty += d; if (C.lines[i].qty <= 0) C.lines.splice(i, 1); render(); },
+  rm(kind, i) { carts[kind].lines.splice(i, 1); render(); },
+  price(kind, i) { if (kind === 'sale' && !need('prices')) { msg = { t: 'err', m: 'لا تملك صلاحية تعديل الأسعار' }; return paintMsg(); } const v = prompt('السعر:', carts[kind].lines[i].p); if (v === null) return; carts[kind].lines[i].p = N(v); render(); },
+  ldisc(i) { if (!need('discounts')) { msg = { t: 'err', m: 'لا تملك صلاحية الخصومات' }; return paintMsg(); } const v = prompt('خصم البند (ج.س):', carts.sale.lines[i].disc); if (v === null) return; carts.sale.lines[i].disc = N(v); render(); },
+  unit(kind, i) { const l = carts[kind].lines[i], it = L.item(S, l.itemId); l.pk++; if (l.pk >= it.packs.length) l.pk = -1; const f = l.pk < 0 ? 1 : it.packs[l.pk].factor; l.factor = f; l.unit = l.pk < 0 ? it.unit : it.packs[l.pk].name; l.p = (kind === 'sale' ? it.sell : it.buy) * f; render(); },
+  pay(kind) { const C = carts[kind]; C.disc = val('c_disc'); C.party = val('c_party'); C.cash = val('c_cash'); C.bank = val('c_bank'); C.ref = val('c_ref'); C.bacc = val('c_bacc'); C.due = val('c_due'); const t = cartTotals(kind); $('tot').textContent = fmt(t.total); $('rem').textContent = fmt(Math.max(0, t.rem)); },
+  full(kind, m) { const C = carts[kind], t = cartTotals(kind); C.cash = m === 'cash' ? String(t.total) : ''; C.bank = m === 'bank' ? String(t.total) : ''; render(); },
+  save(kind) {
+    this.pay(kind); const C = carts[kind], isS = kind === 'sale', fkn = 'doc-' + kind;
+    act(isS ? 'sales' : 'purchases', () => {
+      if ((N(C.disc) > 0 || C.lines.some((l) => l.disc > 0)) && !need('discounts')) throw new Error('لا تملك صلاحية الخصومات');
+      const o = { key: K(fkn), lines: C.lines.map((l) => isS ? { itemId: l.itemId, qty: l.qty, factor: l.factor, unit: l.unit, price: l.p, disc: l.disc } : { itemId: l.itemId, qty: l.qty, factor: l.factor, unit: l.unit, cost: l.p }), discount: N(C.disc), cash: N(C.cash), bank: N(C.bank), bankRef: C.ref, bankAccId: C.bacc ? +C.bacc : null, due: C.due || null, whId: C.wh || null };
+      if (isS) o.customerId = C.party || null; else o.supplierId = C.party || null;
+      const inv = isS ? L.createSale(S, o, who()) : L.createPurchase(S, o, who());
+      carts[kind] = newCart(); view = 'inv:' + inv.id; return 'تم حفظ الفاتورة ' + inv.no;
+    }, fkn);
+  },
+  wa(kind, id) { const inv = (kind === 'sale' ? S.sales : S.purchases).find((x) => x.id === id), isS = kind === 'sale'; let t = (S.settings.shopName || 'ESPIRATI') + '\n' + inv.no + ' ' + inv.at.slice(0, 10) + '\n'; inv.lines.forEach((l) => { t += l.name + ' × ' + l.qty + ' = ' + (l.qty * (isS ? l.price : l.cost) - (l.disc || 0)) + '\n'; }); t += 'الإجمالي: ' + inv.total + ' ج.س\nالمتبقي: ' + inv.credit + ' ج.س'; window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank'); },
+  ret(kind, id) {
+    const inv = (kind === 'sale' ? S.sales : S.purchases).find((x) => x.id === id), rl = []; inv.lines.forEach((l, i) => { const q = N(val('rq' + i)); if (q > 0) rl.push({ idx: i, qty: q }); });
+    if (!rl.length) { msg = { t: 'err', m: 'اكتب كمية المرتجع' }; return paintMsg(); } if (!confirm('تأكيد تسجيل المرتجع؟')) return;
+    act('returns', () => { const o = { key: K('ret' + id), method: val('rmethod'), bankAccId: val('rbank') ? +val('rbank') : null }; const r = kind === 'sale' ? L.returnSale(S, id, rl, o, who()) : L.returnPurchase(S, id, rl, o, who()); return 'تم المرتجع بمبلغ ' + fmt(r.amount); }, 'ret' + id);
+  },
+
+  // الأصناف
+  addItem() { act('inventory', () => { const packs = val('i_packs').split(/[,،]/).map((x) => x.split('=')).filter((x) => x.length === 2 && N(x[1]) > 0).map((x) => ({ name: x[0].trim(), factor: N(x[1]) })); L.addItem(S, { name: val('i_name'), code: val('i_code'), barcode: val('i_bc'), cat: val('i_cat'), unit: val('i_unit'), buy: N(val('i_buy')), sell: N(val('i_sell')), min: N(val('i_min')), openQty: N(val('i_open')), supplierId: val('i_sup'), packs, notes: val('i_notes') }, who()); view = ''; return 'تم حفظ الصنف'; }); },
+  updItem(id) { act('inventory', () => { const it = L.item(S, id); if ((N(val('e_buy')) !== it.buy || N(val('e_sell')) !== it.sell) && !need('prices')) throw new Error('لا تملك صلاحية تعديل الأسعار'); L.updateItem(S, id, { name: val('e_name'), buy: N(val('e_buy')), sell: N(val('e_sell')), min: N(val('e_min')) }, who()); return 'تم التعديل'; }); },
+  fav(id) { act('inventory', () => { const it = L.item(S, id); it.fav = !it.fav; it.quick = it.fav; }); },
+  istock(kind, id) {
+    const q = N(val('s_qty')), wh = +val('s_wh'); if (kind === 'count' ? val('s_qty') === '' : false) { msg = { t: 'err', m: 'اكتب الكمية الفعلية' }; return paintMsg(); }
+    if (!confirm('تأكيد العملية؟')) return;
+    act('inventory', () => { const k = K('st' + kind + id); if (kind === 'count') { const d = L.stocktake(S, id, wh, q, val('s_reason'), k, who()); return 'تم الجرد. الفرق: ' + d; } if (kind === 'transfer') { L.transferStock(S, id, wh, +val('s_to'), q, k, who()); return 'تم النقل'; } if (kind === 'consume') { const a = L.consumePunctureSupply(S, id, wh, q, k, who()); return 'تم الصرف للبنشر، التكلفة ' + fmt(a) + ' على حصة المحل'; } L.writeOffStock(S, id, wh, q, kind, k, who()); return 'تم تسجيل ' + (kind === 'damaged' ? 'التالف' : 'المنتهي'); }, 'st' + kind + id);
+  },
+  addContainer() { act('inventory', () => { L.addContainer(S, { type: val('k_type'), qty: N(val('k_qty')), price: N(val('k_price')), linkedName: val('k_link'), whId: val('k_wh') }, who()); view = ''; return 'تم تسجيل العبوة كصنف مستقل'; }); },
+
+  // الأطراف والديون
+  addParty() { act(psub === 'customer' ? 'sales' : 'purchases', () => { L.addParty(S, { kind: psub, name: val('pa_name'), phone: val('pa_phone'), address: val('pa_addr'), creditLimit: N(val('pa_lim')), rating: Math.min(5, N(val('pa_rate'))), notes: val('pa_notes') }, who()); return 'تمت الإضافة'; }); },
+  favParty(id) { act('purchases', () => { const p = L.party(S, id); p.fav = !p.fav; }); },
+  payParty(id) { act('debts', () => { const o = { method: val('pp_m'), bankAccId: val('pp_b') ? +val('pp_b') : null, ref: K('pp' + id) }; L.payParty(S, id, N(val('pp_amt')), o, who()); return 'تم تسجيل الدفعة'; }, 'pp' + id); },
+  payDebt(id) { act('debts', () => { L.payDebt(S, id, N(val('dp_amt')), { method: val('dp_m'), bankAccId: val('dp_b') ? +val('dp_b') : null, ref: K('dp' + id) }, who()); return 'تم تسجيل الدفعة'; }, 'dp' + id); },
+  writeoff(id) { if (!confirm('تحويل المتبقي إلى دين هالك؟')) return; act('debts', () => { L.writeOffDebt(S, id, who()); return 'تم التحويل إلى دين هالك'; }); },
+  recover2(id) { act('debts', () => { L.recoverBadDebt(S, id, N(val('dr_amt')), { method: 'cash', ref: K('dr' + id) }, who()); return 'تم تسجيل الاسترداد'; }, 'dr' + id); },
+  offset() { act('debts', () => { L.offsetDebts(S, +val('of_r'), +val('of_p'), N(val('of_amt')), K('off'), who()); return 'تمت المقاصة'; }, 'off'); },
+  inst(id) { const n = N(prompt('عدد الأقساط:', '3')); if (!n) return; try { alert(L.installments(L.debtRemaining(L.debt(S, id)), n).map((a, i) => 'القسط ' + (i + 1) + ': ' + a).join('\n')); } catch (e) { alert(e.message); } },
+
+  // المال
+  acctOp() { const op = val('m_op'), perm = L.account(S, +val('m_acc')).type === 'cash' ? 'cash' : 'banks'; if (!confirm('تأكيد العملية؟')) return; act(perm, () => { const a = +val('m_acc'), n = N(val('m_amt')), k = K('acct'); if (op === 'deposit') L.deposit(S, a, n, k, val('m_note'), who()); else if (op === 'withdraw') L.withdraw(S, a, n, k, val('m_note'), who()); else L.bankFee(S, a, n, k, val('m_note'), who()); return 'تمت العملية'; }, 'acct'); },
+  transfer() { if (!confirm('تأكيد التحويل؟')) return; act('cash', () => { L.transfer(S, +val('t_from'), +val('t_to'), N(val('t_amt')), K('tr'), who()); return 'تم التحويل'; }, 'tr'); },
+  recon() { act('cash', () => { const d = L.reconcile(S, +val('r_acc'), N(val('r_act')), K('rc'), who()); return d === 0 ? 'الرصيد مطابق' : 'تم تسجيل فرق ' + d; }, 'rc'); },
+  addAcct() { act('banks', () => { L.addAccount(S, { name: val('n_name'), type: val('n_type') }, who()); return 'تمت الإضافة'; }); },
+  expense() { act('expenses', () => { L.addExpense(S, { cat: val('x_cat'), amount: N(val('x_amt')), method: val('x_m'), bankAccId: val('x_b') ? +val('x_b') : null, payee: val('x_payee'), note: val('x_note'), key: K('exp') }, who()); return 'تم تسجيل المصروف'; }, 'exp'); },
+  revenue() { act('revenues', () => { L.addRevenue(S, { cat: val('v_cat'), amount: N(val('v_amt')), method: val('v_m'), bankAccId: val('v_b') ? +val('v_b') : null, note: val('v_note'), key: K('rev') }, who()); return 'تم تسجيل الإيراد'; }, 'rev'); },
+  addRec() { act('expenses', () => { L.addRecurring(S, { cat: val('rc_cat'), amount: N(val('rc_amt')), day: N(val('rc_day')) }, who()); return 'تمت الإضافة'; }); },
+  postRec(id) { act('expenses', () => { L.postRecurring(S, id, today(), who()); return 'تم تسجيل المصروف'; }); },
+
+  // البنشر والعمال
+  addPerson() { act('people', () => { L.addPerson(S, { name: val('pn'), phone: val('pp'), kind: val('pk') }, who()); return 'تمت الإضافة'; }); },
+  pick(id) { view = 'pe:' + id; render(); },
+  toggle(id) { act('people', () => { const p = L.person(S, id); p.active = !p.active; return p.active ? 'تم تفعيل الحساب' : 'تم إيقاف الحساب (السجلات محفوظة)'; }); },
+  entry(type) { const id = +view.slice(3), a = N(prompt('المبلغ (ج.س):')); if (!a) return; if (!confirm('تأكيد تسجيل ' + L.TYPES[type] + ' بمبلغ ' + fmt(a) + '؟')) return; act('people', () => { L.addEntry(S, id, type, a, 'M-' + uid(), who()); return 'تم التسجيل'; }); },
+  day() { const ids = [...document.querySelectorAll('.wk:checked')].map((x) => +x.value), g = N(val('gross')), d = val('date'); if (!confirm('تأكيد تسجيل دخل البنشر ' + fmt(g) + ' بتاريخ ' + d + '؟')) return; act('puncture_dist', () => { L.recordDay(S, d, g, ids, who()); return 'تم تسجيل دخل اليوم وتقييد مستحقات العمال'; }); },
+  supplies() { act('puncture_dist', () => { L.addSupplies(S, N(val('sup')), val('supn'), who()); return 'تم تسجيل المستلزمات (تخصم من حصة المحل)'; }); },
+  liq(urgent) { let reason = ''; if (urgent) { reason = prompt('اكتب سبب التصفية المستعجلة:') || ''; if (!reason.trim()) { msg = { t: 'err', m: 'سبب التصفية المستعجلة مطلوب' }; return paintMsg(); } } if (!confirm((urgent ? 'تصفية مستعجلة' : 'تصفية البنشر') + ' باسم المعتمد: ' + who() + '. هل أنت متأكد؟')) return; act('liquidation', () => { const r = L.liquidate(S, { urgent, reason, approver: who() }); return 'تمت التصفية. المحل: ' + fmt(r.shopNet) + ' | كبير الموظفين: ' + fmt(r.chief) + (r.deficitOut ? ' | عجز مرحّل: ' + fmt(r.deficitOut) : ''); }); },
+
+  // التقارير
+  preset(p) { const d = today(); $('r_to').value = d; $('r_from').value = p === 'day' ? d : p === 'month' ? d.slice(0, 8) + '01' : d.slice(0, 4) + '-01-01'; },
+  report() { if (!need('reports')) return; const f = val('r_from'), t = val('r_to'); rep = L.report(S, f, t); if (val('r_from2') && val('r_to2')) rep.cmp = L.report(S, val('r_from2'), val('r_to2')); render(); },
+  csv() { if (!rep) return; const r = rep, rows = [['البند', 'القيمة'], ['من', r.from], ['إلى', r.to], ['المبيعات', r.salesTotal], ['المرتجعات', r.retAmt], ['صافي المبيعات', r.netSales], ['المشتريات', r.purchasesTotal], ['المصروفات', r.expTotal], ['إيرادات أخرى', r.revTotal], ['حصة المحل من البنشر', r.punct]]; if (need('profits')) rows.push(['تكلفة المبيعات', r.cogsNet], ['مجمل الربح', r.gross], ['صافي الربح', r.net]); Object.keys(r.expByCat).forEach((k) => rows.push(['مصروف: ' + k, r.expByCat[k]])); download('espirati-report-' + today() + '.csv', L.toCSV(rows), 'text/csv'); },
+
+  // النسخ الاحتياطي
+  async backup() {
+    if (!need('users')) { msg = { t: 'err', m: 'النسخ الاحتياطي للمالك فقط' }; return paintMsg(); }
+    const name = 'espirati-backup-' + today() + '.json', blob = new Blob([L.exportJSON(S)], { type: 'application/json' });
+    try { const f = new File([blob], name, { type: 'application/json' });
+      if (navigator.canShare && navigator.canShare({ files: [f] })) await navigator.share({ files: [f], title: 'نسخة احتياطية ESPIRATI' }); else download(name, L.exportJSON(S), 'application/json');
+      S.settings.lastBackup = new Date().toISOString(); save(); msg = { t: 'okm', m: 'تم إنشاء النسخة الاحتياطية. احفظها في Drive أو أرسلها لنفسك.' };
+    } catch (e) { if (e.name !== 'AbortError') msg = { t: 'err', m: 'تعذر إنشاء النسخة: ' + e.message }; }
+    render();
+  },
+  restore(inp) {
+    const f = inp.files[0]; if (!f) return; if (cur && !need('users')) { msg = { t: 'err', m: 'الاستعادة للمالك فقط' }; return paintMsg(); }
+    const r = new FileReader(); r.onload = () => { try { const ns = L.importJSON(String(r.result)); if (!confirm('سيتم استبدال كل البيانات الحالية بالنسخة المختارة. هل أنت متأكد؟')) return;
+      try { localStorage.setItem(KEY + '.before-restore', JSON.stringify(S)); } catch (e) {} S = ns; cur = null; save(); msg = { t: 'okm', m: 'تمت الاستعادة. سجّل الدخول.' }; } catch (e) { msg = { t: 'err', m: e.message }; } render(); }; r.readAsText(f);
+  },
+
+  // المساعد
+  ai() { $('sheet').classList.add('on'); aiOut = ''; $('sheet').innerHTML = aiSheet(); },
+  aiClose() { aiOut = ''; $('sheet').classList.remove('on'); $('sheet').innerHTML = ''; },
+  aiMic() { const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if (!SR) { aiOut = '<div class="note warn">متصفحك لا يدعم الإملاء. استخدم ميكروفون لوحة المفاتيح.</div>'; $('ai_out').innerHTML = aiOut; return; } const r = new SR(); r.lang = 'ar'; r.onresult = (e) => { $('ai_t').value = e.results[0][0].transcript; A.aiRun(); }; r.onerror = () => { $('ai_out').innerHTML = '<div class="note warn">تعذر الإملاء الآن (قد يحتاج إنترنت).</div>'; }; r.start(); },
+  aiRun() {
+    const text = val('ai_t'), names = S.items.filter((i) => i.cat !== L.CAT_PUNCT).map((i) => i.name), d = L.parseCommand(text, names), out = $('ai_out'), say = (h) => { aiOut = h; out.innerHTML = h; };
+    S.assistantLog.push({ at: new Date().toISOString(), by: who(), text, intent: d.intent }); if (S.assistantLog.length > 200) S.assistantLog.shift(); save();
+    if (d.intent === 'QUERY_TODAY_SALES') { if (!need('sales')) return say(denied()); const t = S.sales.filter((x) => x.at.slice(0, 10) === today()); return say(card('مبيعات اليوم', row('عدد الفواتير', t.length) + row('الإجمالي', fmt(t.reduce((a, x) => a + x.total, 0))))); }
+    if (d.intent === 'QUERY_LOW_STOCK') { const l = S.items.filter(L.isLow); return say(card('الأصناف الناقصة', l.map((i) => row(esc(i.name), L.totalQty(i))).join('') || '<div class="mut">لا يوجد نقص</div>')); }
+    if (d.intent === 'QUERY_CUSTOMER_BALANCE') { if (!need('debts')) return say(denied()); const q = L.norm(d.customer), m = S.parties.filter((p) => q && L.norm(p.name).includes(q)); return say(card('الرصيد', m.map((p) => row(esc(p.name), fmt(L.partyBalance(S, p.id)))).join('') || '<div class="mut">لا يوجد زبون بهذا الاسم</div>')); }
+    if (d.intent === 'SALE' || d.intent === 'PURCHASE') {
+      const kind = d.intent === 'SALE' ? 'sale' : 'purchase'; if (!need(kind === 'sale' ? 'sales' : 'purchases')) return say(denied());
+      let h = '<div class="card"><h2>مسودة ' + (kind === 'sale' ? 'بيع' : 'شراء') + ' للمراجعة</h2>';
+      d.lines.forEach((l, i) => { h += '<div class="row"><span>' + l.qty + ' × ' + esc(l.spoken) + '</span>' + (l.candidates.length === 0 ? '<b class="low">غير موجود</b>' : '<select id="ai_c' + i + '" style="width:55%">' + opt(l.candidates.map((c) => [c, c])) + '</select>') + '</div>'; });
+      window.__draft = d; h += '<div class="mut">الدفع: ' + ({ cash: 'نقداً', bank: 'بنكياً', credit: 'آجل' }[d.pay] || 'لم يُحدد') + (d.customer ? ' — ' + esc(d.customer) : '') + '</div><button onclick="A.aiApply(\'' + kind + '\')">وضعها في الفاتورة للمراجعة</button></div>';
+      return say(h);
+    }
+    say('<div class="note warn">لم أفهم الأمر. جرّب: «بعت 3 زيوت و2 بوجيه نقداً» أو «مبيعات اليوم» أو «الناقص» أو «رصيد أحمد».</div>');
+  },
+  aiApply(kind) {
+    const d = window.__draft, C = carts[kind]; C.lines = []; let miss = 0;
+    d.lines.forEach((l, i) => { if (!l.candidates.length) { miss++; return; } const name = val('ai_c' + i) || l.candidates[0], it = S.items.find((x) => x.name === name); C.lines.push({ itemId: it.id, name: it.name, qty: l.qty, factor: 1, unit: it.unit, p: kind === 'sale' ? it.sell : it.buy, disc: 0, pk: -1 }); });
+    const t = cartTotals(kind); C.cash = d.pay === 'cash' ? String(t.total) : ''; C.bank = d.pay === 'bank' ? String(t.total) : '';
+    if (d.customer) { const q = L.norm(d.customer), p = S.parties.find((x) => x.kind === (kind === 'sale' ? 'customer' : 'supplier') && L.norm(x.name).includes(q)); if (p) C.party = String(p.id); }
+    this.aiClose(); tab = kind === 'sale' ? 'sales' : 'purchases'; view = ''; msg = { t: 'warn', m: 'راجع المسودة ثم احفظ.' + (miss ? ' (' + miss + ' صنف غير موجود لم يُضف)' : '') + (d.pay === 'bank' ? ' أدخل رقم العملية البنكية.' : '') }; render();
+  }
+};
+function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
+function addLogLogin(u) { S.log.push({ at: new Date().toISOString(), actor: u.name, action: 'LOGIN', detail: '' }); save(); }
+
+// ---------- العرض ----------
+const SCREENS = { home, sales, items, purchases, parties, debts, money, puncture, people, reports, settings, notes, more };
+const NAV = [['home', 'الرئيسية'], ['sales', 'المبيعات'], ['items', 'المخزون'], ['purchases', 'المشتريات'], ['more', 'المزيد']];
+function render() {
+  applyTheme(); const nav = $('nav'), main = $('main'), fab = $('fab'), bell = $('bell');
+  if (!S.users.length) { main.innerHTML = '<div id="msg">' + banner() + '</div>' + setupScreen(); nav.innerHTML = ''; fab.style.display = 'none'; bell.innerHTML = ''; return; }
+  if (!cur) { main.innerHTML = loginScreen(); nav.innerHTML = ''; fab.style.display = 'none'; bell.innerHTML = ''; return; }
+  const f = SCREENS[tab] || home; let h; try { h = f(); } catch (e) { h = '<div class="note err">خطأ في العرض: ' + esc(e.message) + '</div><button onclick="A.go(\'home\')">الرئيسية</button>'; }
+  main.innerHTML = (h.startsWith('<div id="msg">') ? '' : '<div id="msg">' + banner() + '</div>') + h;
+  const more = ['parties', 'debts', 'money', 'puncture', 'people', 'reports', 'settings', 'notes', 'more'];
+  nav.innerHTML = NAV.map((x) => '<a class="' + (tab === x[0] || (x[0] === 'more' && more.includes(tab)) ? 'on' : '') + '" onclick="A.go(\'' + x[0] + '\')">' + x[1] + '</a>').join('');
+  fab.style.display = 'block'; const n = L.notifications(S, today()).length; bell.innerHTML = '🔔' + (n ? '<b>' + n + '</b>' : '');
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) hiddenAt = Date.now(); else if (cur && Date.now() - hiddenAt > 120000) { cur = null; render(); } });
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+render();
+
+</script>
+</body>
+</html>
