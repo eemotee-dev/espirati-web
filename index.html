@@ -34,14 +34,31 @@ nav a{flex:1;text-align:center;padding:12px 2px;font-size:14px;color:var(--mut);
 #sheet{position:fixed;inset:0;background:var(--bg);z-index:10;overflow:auto;padding:14px;display:none}#sheet.on{display:block}
 .invoice table{width:100%;border-collapse:collapse}.invoice td,.invoice th{padding:6px;border-bottom:1px solid var(--line);text-align:start}
 @media print{header,nav,#fab,#sheet,.noprint,button{display:none!important}body{background:#fff;color:#000;padding:0}.card{border:0}.invoice{display:block!important}}
+
+.ic{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;flex:none}
+header{gap:10px}#bell{display:flex;align-items:center}#bell .ic{width:26px;height:26px}
+nav a{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12.5px}nav a .ic{width:25px;height:25px}
+button .ic{margin-inline-end:6px;width:20px;height:20px}button.mini .ic{margin:0}
+.tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--card);color:var(--tx);border:1px solid var(--line);padding:16px 8px;font-size:15px}.tile .ic{width:30px;height:30px;color:var(--pri);margin:0}
+.li{display:flex;align-items:center;gap:12px;padding:14px 4px;border-bottom:1px solid var(--line);cursor:pointer}.li:last-child{border:0}.li .ic{color:var(--pri);width:26px;height:26px}.li span{flex:1}.li .ic.ch{width:18px;height:18px;color:var(--mut)}
+details.fold{padding:0}details.fold>summary{list-style:none;cursor:pointer;padding:14px;font-weight:700;display:flex;align-items:center;gap:8px;color:var(--pri)}details.fold>summary::-webkit-details-marker{display:none}details.fold[open]>summary{border-bottom:1px solid var(--line)}details.fold>div{padding:6px 14px 14px}
+.srch{display:flex;gap:8px;align-items:center}.srch input{flex:1}.srch button{width:52px;height:50px;padding:0;margin:0;flex:none;display:flex;align-items:center;justify-content:center}.srch button .ic{margin:0}
+body.out header,body.out nav{display:none}body.out{padding-bottom:20px}
+.lg{max-width:360px;margin:0 auto;text-align:center;padding-top:18px}.lgl{width:84px;height:84px;border-radius:24px;background:var(--pri);color:var(--prit);display:flex;align-items:center;justify-content:center;margin:0 auto 12px}.lgl .ic{width:46px;height:46px;stroke-width:1.5}
+.lgn{font-size:26px;font-weight:800}.users{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:14px 0}.users button{width:auto;margin:0;padding:8px 16px}
+.dots{display:flex;gap:14px;justify-content:center;margin:14px 0 18px;min-height:20px}.dots i{width:16px;height:16px;border-radius:50%;border:2px solid var(--pri)}.dots i.f{background:var(--pri)}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;direction:ltr}.pad button{margin:0;height:64px;font-size:26px;background:var(--card);color:var(--tx);border:1px solid var(--line)}.pad button.go{background:var(--pri);color:var(--prit)}
+#scan{position:fixed;inset:0;background:#000;z-index:20;display:none;flex-direction:column;padding:12px;gap:8px}#scan.on{display:flex}#scan video{flex:1;min-height:0;width:100%;object-fit:cover;border-radius:12px}#scan .sb{color:#fff;text-align:center;font-weight:700}
+.li small,.row small{color:var(--mut);display:block;font-size:13px;font-weight:400}.pill.arc{background:#fde7e5;color:var(--bad)}
 </style>
 </head>
 <body>
 <header><span id="title">ESPIRATI 1.0</span><span id="bell" onclick="A.go('notes')"></span></header>
 <main id="main"></main>
 <nav id="nav"></nav>
-<button id="fab" onclick="A.ai()" style="display:none" aria-label="المساعد">🤖</button>
+<button id="fab" onclick="A.ai()" style="display:none" aria-label="المساعد"><svg class="ic" style="width:28px;height:28px;margin:0" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 10h8M8 13h5"/></svg></button>
 <div id="sheet"></div>
+<div id="scan"></div>
 <script>
 'use strict';
 const L = (function () {
@@ -55,7 +72,7 @@ const L = (function () {
              accounts: [{ id: 1, name: 'الصندوق', type: 'cash', opening: 0 }], tx: [], warehouses: [{ id: 2, name: 'المخزن الرئيسي' }],
              items: [], parties: [], sales: [], salesReturns: [], purchases: [], purchaseReturns: [], expenses: [], revenues: [], recurring: [],
              debts: [], adjustments: [], users: [], keys: {}, counters: { sale: 0, purchase: 0, ret: 0 }, assistantLog: [],
-             settings: { owner: 'المالك', lastBackup: null, theme: 'auto',
+             settings: { owner: 'المالك', lastBackup: null, theme: 'auto', lockMin: 10, readNotes: {},
                units: ['حبة', 'دستة', 'كرتونة', 'لتر', 'جالون', 'جركان', 'زوج'],
                cats: ['إسبيرات الدراجات النارية', 'الزيوت والشحوم', 'البطاريات', 'الإطارات والأنابيب', 'مستلزمات البنشر', 'الإكسسوارات', 'أصناف أخرى', 'عبوات فارغة'],
                expCats: ['إيجار', 'كهرباء وماء', 'رواتب وأجور', 'نقل', 'حوافز البنشر', 'صيانة', 'متنوعة'] } };
@@ -230,11 +247,21 @@ const L = (function () {
     const it = item(s, id), old = { buy: it.buy, sell: it.sell, name: it.name };
     if (o.name !== undefined) { if (!o.name.trim()) fail('اسم الصنف مطلوب'); it.name = o.name.trim(); }
     if (o.buy !== undefined) it.buy = int0(o.buy); if (o.sell !== undefined) it.sell = int0(o.sell); if (o.min !== undefined) it.min = int0(o.min);
-    for (const k of ['cat', 'unit', 'notes', 'fav', 'quick', 'packs', 'supplierId']) if (o[k] !== undefined) it[k] = o[k];
+    if (o.code !== undefined) { const c = String(o.code).trim(); if (c && s.items.some((i) => i.id !== it.id && i.code === c)) fail('الكود مستخدم لصنف آخر'); it.code = c; }
+    if (o.barcode !== undefined) { const b = String(o.barcode).trim(); if (b && s.items.some((i) => i.id !== it.id && i.barcode === b)) fail('الباركود مستخدم لصنف آخر'); it.barcode = b; }
+    if (o.supplierId !== undefined) o.supplierId = o.supplierId ? Number(o.supplierId) : null;
+    for (const k of ['cat', 'unit', 'notes', 'fav', 'quick', 'packs', 'supplierId', 'archived']) if (o[k] !== undefined) it[k] = o[k];
     addLog(s, actor, 'UPDATE_ITEM', JSON.stringify({ item: it.name, old, new: { buy: it.buy, sell: it.sell, name: it.name } }));
   }
+  /** حذف نهائي للصنف الذي لا حركة عليه، وإلا إخفاء (أرشفة) ليبقى تاريخه سليماً. */
+  function removeItem(s, id, actor) {
+    const it = item(s, id), nid_ = Number(id);
+    const used = totalQty(it) !== 0 || s.sales.some((v) => v.lines.some((l) => l.itemId === nid_)) || s.purchases.some((v) => v.lines.some((l) => l.itemId === nid_)) || s.adjustments.some((a) => a.itemId === nid_) || s.supplies.some((x) => x.itemId === nid_) || (it.priceHist || []).length > 0;
+    if (used) { it.archived = true; it.fav = false; it.quick = false; addLog(s, actor, 'ARCHIVE_ITEM', it.name); return 'archived'; }
+    s.items.splice(s.items.indexOf(it), 1); addLog(s, actor, 'DELETE_ITEM', it.name); return 'deleted';
+  }
   function addWarehouse(s, name, actor) { name = (name || '').trim(); if (!name) fail('اسم المخزن مطلوب'); const w = { id: nid(s), name }; s.warehouses.push(w); addLog(s, actor, 'ADD_WAREHOUSE', name); return w; }
-  const isLow = (it) => it.min > 0 && totalQty(it) <= it.min;
+  const isLow = (it) => !it.archived && it.min > 0 && totalQty(it) <= it.min;
   function transferStock(s, itemId, from, to, qty, key, actor) {
     const it = item(s, itemId); if (Number(from) === Number(to)) fail('اختر مخزنين مختلفين'); if (!isInt(qty)) fail('الكمية يجب أن تكون أكبر من صفر');
     claim(s, key); stockOut(it, Number(from), qty); it.stock[Number(to)] = qtyOf(it, Number(to)) + qty;
@@ -444,6 +471,13 @@ const L = (function () {
   }
   function inventoryReport(s) { return s.items.filter((i) => i.cat !== CAT_PUNCT || true).map((i) => ({ id: i.id, name: i.name, qty: totalQty(i), value: Math.round(totalQty(i) * i.avg), low: isLow(i) })); }
   function debtsReport(s, today) { const b = { recv: 0, pay: 0, aging: [0, 0, 0, 0, 0] }; s.debts.forEach((d) => { const r = debtRemaining(d); if (d.kind === 'receivable') { b.recv += r; b.aging[agingBucket(d, today)] += r; } else b.pay += r; }); return b; }
+  /** كشف أعمار الديون: لكل دين مفتوح عمره منذ التسجيل وأيام التأخر عن الاستحقاق. */
+  function debtAges(s, today) {
+    const out = [], day = (x) => Date.parse(String(x).slice(0, 10));
+    s.debts.forEach((d) => { const rem = debtRemaining(d); if (rem <= 0) return; const p = s.parties.find((x) => x.id === d.partyId);
+      out.push({ id: d.id, kind: d.kind, name: d.label || (p ? p.name : ''), remaining: rem, at: String(d.at).slice(0, 10), due: d.due || '', sinceDays: Math.max(0, Math.floor((day(today) - day(d.at)) / 864e5)), lateDays: d.due && today > d.due ? Math.floor((day(today) - day(d.due)) / 864e5) : 0 }); });
+    return out.sort((a, b) => b.sinceDays - a.sinceDays);
+  }
   function toCSV(rows) { return '﻿' + rows.map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n'); }
   function soldPerDay(s, itemId, today, days) { const out = Array(days).fill(0), t = Date.parse(today); s.sales.forEach((v) => { const k = Math.floor((t - Date.parse(v.at.slice(0, 10))) / 864e5); if (k >= 0 && k < days) v.lines.forEach((l) => { if (l.itemId === Number(itemId)) out[k] += l.qty * l.factor; }); }); return out; }
   function advise(sold, onHand, lead, cover) { const tot = sold.reduce((a, b) => a + b, 0), avg = tot / sold.length; if (avg === 0) return { avg: 0, daysLeft: null, qty: 0, now: false }; const daysLeft = Math.floor(onHand / avg), qty = Math.max(0, Math.ceil(avg * (lead + cover)) - onHand); return { avg, daysLeft, qty, now: daysLeft <= lead }; }
@@ -451,12 +485,12 @@ const L = (function () {
   // ================= الإشعارات =================
   function notifications(s, today) {
     const n = [];
-    s.items.filter(isLow).forEach((i) => n.push({ t: 'stock', m: 'نقص مخزون: ' + i.name + ' (' + totalQty(i) + ')', go: 'items' }));
-    s.debts.filter((d) => d.kind === 'receivable' && agingBucket(d, today) > 0).forEach((d) => n.push({ t: 'debt', m: 'دين مستحق متأخر: ' + ((s.parties.find((p) => p.id === d.partyId) || {}).name || '') + ' ' + debtRemaining(d), go: 'debts' }));
-    s.debts.filter((d) => d.kind === 'payable' && agingBucket(d, today) > 0).forEach((d) => n.push({ t: 'debt', m: 'مستحق للدفع متأخر: ' + (d.label || ((s.parties.find((p) => p.id === d.partyId) || {}).name || '')) + ' ' + debtRemaining(d), go: 'debts' }));
-    dueRecurring(s, today).forEach((r) => n.push({ t: 'recur', m: 'مصروف متكرر مستحق: ' + r.cat + ' ' + r.amount, go: 'money' }));
-    if (!s.days.some((d) => d.date === today) && new Date().getHours() >= 18) n.push({ t: 'puncture', m: 'تذكير: لم يُسجَّل دخل البنشر اليوم', go: 'puncture' });
-    if (openBalance(s) >= THRESHOLD) n.push({ t: 'puncture', m: 'رصيد البنشر بلغ حد التصفية', go: 'puncture' });
+    s.items.filter(isLow).forEach((i) => n.push({ k: 'stock:' + i.id, t: 'stock', m: 'نقص مخزون: ' + i.name + ' (' + totalQty(i) + ')', go: 'items' }));
+    s.debts.filter((d) => d.kind === 'receivable' && agingBucket(d, today) > 0).forEach((d) => n.push({ k: 'debt:' + d.id, t: 'debt', m: 'دين مستحق متأخر: ' + ((s.parties.find((p) => p.id === d.partyId) || {}).name || '') + ' ' + debtRemaining(d), go: 'debts' }));
+    s.debts.filter((d) => d.kind === 'payable' && agingBucket(d, today) > 0).forEach((d) => n.push({ k: 'debt:' + d.id, t: 'debt', m: 'مستحق للدفع متأخر: ' + (d.label || ((s.parties.find((p) => p.id === d.partyId) || {}).name || '')) + ' ' + debtRemaining(d), go: 'debts' }));
+    dueRecurring(s, today).forEach((r) => n.push({ k: 'recur:' + r.id, t: 'recur', m: 'مصروف متكرر مستحق: ' + r.cat + ' ' + r.amount, go: 'money' }));
+    if (!s.days.some((d) => d.date === today) && new Date().getHours() >= 18) n.push({ k: 'punct-day', t: 'puncture', m: 'تذكير: لم يُسجَّل دخل البنشر اليوم', go: 'puncture' });
+    if (openBalance(s) >= THRESHOLD) n.push({ k: 'punct-liq', t: 'puncture', m: 'رصيد البنشر بلغ حد التصفية', go: 'puncture' });
     return n;
   }
 
@@ -507,7 +541,7 @@ const L = (function () {
   }
 
   return { THRESHOLD, TYPES, PERMS, CAT_PUNCT, newState, split, distributeWorkers, addPerson, balance, addEntry, openDays, openTotals, openBalance, recordDay, addSupplies, liquidate, exportJSON, importJSON, person,
-    cashAcc, account, accBalance, postTx, addAccount, deposit, withdraw, bankFee, transfer, reconcile, addParty, party, item, qtyOf, totalQty, addItem, updateItem, addWarehouse, isLow, transferStock, stocktake, writeOffStock,
+    cashAcc, account, accBalance, postTx, addAccount, deposit, withdraw, bankFee, transfer, reconcile, addParty, party, item, qtyOf, totalQty, addItem, updateItem, removeItem, debtAges, addWarehouse, isLow, transferStock, stocktake, writeOffStock,
     consumePunctureSupply, addContainer, debtRemaining, debt, partyBalance, payDebt, payParty, writeOffDebt, recoverBadDebt, offsetDebts, agingBucket, installments, createSale, returnSale, createPurchase, returnPurchase,
     addExpense, addRevenue, addRecurring, dueRecurring, postRecurring, report, inventoryReport, debtsReport, toCSV, soldPerDay, advise, notifications, can, addUser, modifyUser, parseCommand, matchItems, norm };
 })();
@@ -518,17 +552,59 @@ const esc = (t) => String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&':
 const fmt = (n) => Number(n || 0).toLocaleString('en-US') + ' ج.س';
 const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-const N = (v) => { const x = parseInt(String(v == null ? '' : v).replace(/[^\d]/g, ''), 10); return isNaN(x) ? 0 : x; };
+const N = (v) => { const x = parseInt(String(v == null ? '' : v).replace(/[٠-٩]/g, (c) => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[۰-۹]/g, (c) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/[^\d]/g, ''), 10); return isNaN(x) ? 0 : x; };
+const APP_VERSION = '1.1.0';
+const ICONS = {
+  home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>', sales: '<circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.5 12h11l2-8H6"/>',
+  items: '<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>', purchases: '<path d="M2 6h12v10H2z"/><path d="M14 9h4l3 3v4h-7z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/>',
+  more: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+  settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-4 3-6 7-6s7 2 7 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M22 20c0-3-2-5-4.5-5.5"/>', parties: '<circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-4 3-6 7-6s7 2 7 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M22 20c0-3-2-5-4.5-5.5"/>',
+  debts: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/>', money: '<circle cx="12" cy="12" r="9"/><path d="M12 6.5v11M15 9.5c0-1.2-1.3-2-3-2s-3 .8-3 2 1.3 1.8 3 2.2 3 1 3 2.3-1.3 2-3 2-3-.8-3-2"/>',
+  puncture: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v5M12 16v5M3 12h5M16 12h5"/>', people: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.5 3.5-7 8-7s8 2.5 8 7"/>',
+  reports: '<path d="M4 20V4M4 20h16"/><path d="M8 16v-5M12 16V8M16 16v-3"/>', bell: '<path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>',
+  shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>', palette: '<path d="M12 3a9 9 0 1 0 0 18c1.5 0 2-1 1.5-2-.6-1.2.2-2.5 1.5-2.5H17a4 4 0 0 0 4-4C21 6.5 17 3 12 3z"/><circle cx="8" cy="10" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="16" cy="10" r="1"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>', backup: '<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 20h16"/>', clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/>', camera: '<path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="13" r="4"/>', plus: '<path d="M12 5v14M5 12h14"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', back: '<path d="M9 6l6 6-6 6"/>', chev: '<path d="M15 6l-6 6 6 6"/>', trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>', check: '<path d="M5 12l5 5 9-10"/>',
+  shop: '<path d="M3 9l2-5h14l2 5"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/>', doc: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h7"/>'
+};
+const ic = (n) => '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">' + (ICONS[n] || '') + '</svg>';
+const fold = (h, body, open) => '<details class="card fold"' + (open ? ' open' : '') + '><summary>' + ic('plus') + h + '</summary><div>' + body + '</div></details>';
+const tile = (i, t, go) => '<button class="tile" onclick="A.go(\'' + go + '\')">' + ic(i) + t + '</button>';
+const lrow = (i, t, click, sm) => '<div class="li" onclick="' + click + '">' + ic(i) + '<span>' + t + (sm ? '<small>' + sm + '</small>' : '') + '</span>' + ic('chev').replace('class="ic"', 'class="ic ch"') + '</div>';
 const $ = (id) => document.getElementById(id);
 const val = (id) => ($(id) || {}).value || '';
 const KIND = { worker: 'عامل بنشر', employee: 'موظف', chief: 'كبير الموظفين' };
 const newCart = () => ({ lines: [], party: '', cash: '', bank: '', ref: '', bacc: '', disc: '', due: '', wh: '' });
-let S = load(), cur = null, tab = 'home', view = '', msg = null, hiddenAt = 0, sub = '';
+let S = load(), cur = null, tab = 'home', view = '', msg = null, hiddenAt = 0, sub = '', ready = false, pinBuf = '', ssub = '', showArch = false, lastNotes = [];
 let loginUser = 0, carts = { sale: newCart(), purchase: newCart() }, lastRes = [];
 const fk = {}; const K = (n) => fk[n] || (fk[n] = uid());
 
 function load() { try { const t = localStorage.getItem(KEY); if (t) return L.importJSON(t); } catch (e) {} return L.newState(); }
-function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch (e) { msg = { t: 'err', m: 'تعذر حفظ البيانات: ' + e.message }; return false; } }
+// تخزين مزدوج: قاعدة IndexedDB (مساحة أكبر) + نسخة localStorage عند الإمكان
+let DB = null;
+const idbOpen = () => new Promise((res) => { try { const r = indexedDB.open('espirati', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => { DB = r.result; res(DB); }; r.onerror = () => res(null); r.onblocked = () => res(null); } catch (e) { res(null); } });
+const idbGet = () => new Promise((res) => { if (!DB) return res(null); try { const q = DB.transaction('kv').objectStore('kv').get('state'); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); } catch (e) { res(null); } });
+function idbPut(j) { if (!DB) return; try { const t = DB.transaction('kv', 'readwrite'); t.objectStore('kv').put(j, 'state'); t.onerror = () => { msg = { t: 'err', m: 'تعذر الحفظ في قاعدة الهاتف' }; }; } catch (e) {} }
+function save() {
+  try {
+    S._t = Date.now(); const j = JSON.stringify(S); idbPut(j);
+    try { localStorage.setItem(KEY, j); } catch (e) { try { localStorage.removeItem(KEY); } catch (_) {} if (!DB) { msg = { t: 'err', m: 'تعذر حفظ البيانات: ' + e.message }; return false; } }
+    return true;
+  } catch (e) { msg = { t: 'err', m: 'تعذر حفظ البيانات: ' + e.message }; return false; }
+}
+// الجلسة: لا يُطلب الرمز من جديد إلا بعد انقضاء مهلة القفل (حتى لو أغلق النظام التطبيق في الخلفية)
+const SES = 'espirati.session', lockMs = () => (S.settings.lockMin == null ? 10 : S.settings.lockMin) * 60000;
+function touch() { try { if (cur) localStorage.setItem(SES, JSON.stringify({ u: cur.id, t: Date.now() })); } catch (e) {} }
+function endSession() { try { localStorage.removeItem(SES); } catch (e) {} }
+function restoreSession() { try { const x = JSON.parse(localStorage.getItem(SES) || 'null'); if (!x) return; const u = S.users.find((y) => y.id === x.u && y.active); if (u && (lockMs() === 0 || Date.now() - x.t < lockMs())) cur = u; } catch (e) {} }
+async function init() {
+  await idbOpen(); const j = await idbGet();
+  if (j) { try { const ns = L.importJSON(j); if (!S.users.length || (ns._t || 0) >= (S._t || 0)) S = ns; } catch (e) {} }
+  if (S.users.length) save();
+  restoreSession(); ready = true; render();
+}
 function applyTheme() { const t = S.settings.theme; if (t === 'dark') document.documentElement.dataset.theme = 'dark'; else document.documentElement.removeAttribute('data-theme'); }
 const need = (p) => L.can(cur, p);
 const who = () => cur ? cur.name : 'النظام';
@@ -560,10 +636,14 @@ const goodPin = (p) => /^\d{4,8}$/.test(p);
 function setupScreen() {
   return '<div class="card"><h2>إعداد أول مرة: حساب المالك</h2><div class="mut">هذا الحساب يملك كل الصلاحيات ولا يستطيع الموظفون تعديله.</div><input id="su_name" placeholder="اسم المالك"><input id="su_pin" inputmode="numeric" type="password" placeholder="رمز PIN (4 إلى 8 أرقام)"><input id="su_pin2" inputmode="numeric" type="password" placeholder="أعد كتابة الرمز"><button onclick="A.setup()">إنشاء الحساب</button></div><div class="card"><h2>عندك نسخة احتياطية؟</h2><input type="file" accept=".json" onchange="A.restore(this)"></div>';
 }
+const dotsHTML = () => { const n = Math.max(4, pinBuf.length); let h = ''; for (let i = 0; i < n; i++) h += '<i class="' + (i < pinBuf.length ? 'f' : '') + '"></i>'; return h; };
 function loginScreen() {
-  const us = S.users.filter((u) => u.active);
-  return banner() + '<div class="card"><h2>تسجيل الدخول</h2><select id="lg_u">' + us.map((u) => '<option value="' + u.id + '"' + (u.id === loginUser ? ' selected' : '') + '>' + esc(u.name) + '</option>').join('') + '</select><input id="lg_pin" inputmode="numeric" type="password" placeholder="رمز PIN"><button onclick="A.login()">دخول</button></div>' +
-    '<div class="card"><h2>نسيت الرمز؟ (المالك)</h2><input id="rc_code" placeholder="رمز الاسترداد"><input id="rc_pin" inputmode="numeric" type="password" placeholder="رمز PIN جديد"><button class="sec" onclick="A.recover()">استرداد</button></div>';
+  const us = S.users.filter((u) => u.active); if (!us.some((u) => u.id === loginUser)) loginUser = us[0] ? us[0].id : 0;
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'x', '0', 'ok'];
+  return '<div class="lg"><div class="lgl">' + ic('shop') + '</div><div class="lgn">' + esc(S.settings.shopName || 'ESPIRATI') + '</div><div class="mut">أدخل رمز PIN للدخول</div>' + '<div id="msg">' + banner() + '</div>' +
+    (us.length > 1 ? '<div class="users">' + us.map((u) => '<button ' + (u.id === loginUser ? '' : 'class="sec" ') + 'onclick="A.pickUser(' + u.id + ')">' + esc(u.name) + '</button>').join('') + '</div>' : '<div class="mut" style="margin:10px 0"><b>' + esc((us[0] || {}).name || '') + '</b></div>') +
+    '<div class="dots" id="dots">' + dotsHTML() + '</div><div class="pad">' + keys.map((k) => k === 'x' ? '<button onclick="A.key(\'x\')" aria-label="مسح">⌫</button>' : k === 'ok' ? '<button class="go" onclick="A.login()" aria-label="دخول">' + ic('check') + '</button>' : '<button onclick="A.key(\'' + k + '\')">' + k + '</button>').join('') + '</div>' +
+    '<details class="card fold" style="margin-top:22px;text-align:start"><summary>نسيت الرمز؟ (المالك)</summary><div><input id="rc_code" placeholder="رمز الاسترداد"><input id="rc_pin" inputmode="numeric" type="password" placeholder="رمز PIN جديد"><button class="sec" onclick="A.recover()">استرداد</button></div></details></div>';
 }
 
 // ---------- أدوات عرض ----------
@@ -583,7 +663,7 @@ function home() {
   const low = S.items.filter(L.isLow).length;
   let h = '';
   if (need('users') && (days === null || days > 3)) h += '<div class="note warn">' + (days === null ? 'لم تأخذ نسخة احتياطية بعد.' : 'مرّت ' + Math.floor(days) + ' أيام منذ آخر نسخة احتياطية.') + ' <a onclick="A.go(\'settings\')" style="text-decoration:underline">خذ نسخة الآن</a></div>';
-  if (t.gross >= L.THRESHOLD) h += '<div class="note warn">🔔 رصيد البنشر بلغ حد التصفية وينتظر اعتمادك.</div>';
+  if (t.gross >= L.THRESHOLD) h += '<div class="note warn">' + ic('bell') + ' رصيد البنشر بلغ حد التصفية وينتظر اعتمادك.</div>';
   h += '<div class="grid">';
   if (need('cash')) h += '<div class="card"><div class="mut">رصيد النقدية</div><div class="big">' + fmt(L.accBalance(S, L.cashAcc(S).id)) + '</div></div>';
   if (need('banks')) h += '<div class="card"><div class="mut">رصيد البنك</div><div class="big">' + fmt(banks().reduce((a, b) => a + L.accBalance(S, b.id), 0)) + '</div></div>';
@@ -592,17 +672,20 @@ function home() {
   h += '</div>';
   h += '<div class="card"><div class="row"><span>البضائع الناقصة</span><b class="' + (low ? 'low' : '') + '">' + low + '</b></div>' + (low ? '<button class="sec" onclick="A.go(\'items\')">عرض الناقص</button>' : '') + '</div>';
   h += '<div class="card"><h2>رصيد البنشر (حسابي)</h2><div class="big">' + fmt(t.gross) + '</div><div class="bar"><i style="width:' + pct + '%"></i></div><div class="mut">الحد ' + fmt(L.THRESHOLD) + '</div></div>';
-  h += '<div class="card"><h2>اختصارات</h2><div class="grid"><button onclick="A.go(\'sales\')">بيع جديد</button><button onclick="A.go(\'purchases\')">شراء جديد</button><button class="sec" onclick="A.go(\'puncture\')">البنشر</button><button class="sec" onclick="A.go(\'more\')">كل الأقسام</button></div></div>';
+  h += '<div class="card"><h2>اختصارات</h2><div class="grid"><button onclick="A.go(\'sales\')">' + ic('sales') + 'بيع جديد</button><button onclick="A.go(\'purchases\')">' + ic('purchases') + 'شراء جديد</button><button class="sec" onclick="A.go(\'puncture\')">' + ic('puncture') + 'البنشر</button><button class="sec" onclick="A.go(\'more\')">' + ic('more') + 'كل الأقسام</button></div></div>';
   return h;
 }
 function more() {
-  const b = (t, k) => '<button class="sec" onclick="A.go(\'' + k + '\')">' + t + '</button>';
-  return card('الأقسام', '<div class="grid">' + b('المشتريات', 'purchases') + b('الأطراف (زبائن/موردون)', 'parties') + b('الديون', 'debts') + b('الخزينة والمصروفات', 'money') + b('البنشر', 'puncture') + b('العمال والموظفون', 'people') + b('التقارير', 'reports') + b('الإشعارات', 'notes') + b('الإعدادات', 'settings') + '</div>');
+  return card('الأقسام', '<div class="grid">' + tile('items', 'الأصناف', 'items') + tile('purchases', 'المشتريات', 'purchases') + tile('parties', 'الزبائن والموردون', 'parties') + tile('debts', 'الديون', 'debts') + tile('money', 'الخزينة والمصروفات', 'money') + tile('puncture', 'البنشر', 'puncture') + tile('people', 'العمال والموظفون', 'people') + tile('reports', 'التقارير', 'reports') + tile('bell', 'الإشعارات', 'notes') + tile('settings', 'الإعدادات', 'settings') + '</div>');
 }
 
 // ---------- سلة البيع والشراء ----------
 const cartKind = () => (tab === 'purchases' ? 'purchase' : 'sale');
 function cartTotals(kind) { const C = carts[kind]; let net = 0; C.lines.forEach((l) => { net += l.qty * l.p - (l.disc || 0); }); const idisc = Math.min(net, N(C.disc)), total = net - idisc, cash = N(C.cash), bank = N(C.bank); return { net, idisc, total, cash, bank, rem: total - cash - bank }; }
+function newItemFold() {
+  return fold('صنف جديد غير مسجّل (أضفه وأدخله في الفاتورة)', inp('ni_name', 'اسم الصنف الجديد') + inp('ni_buy', 'سعر الشراء (التكلفة)', '', 'num') + inp('ni_sell', 'سعر البيع', '', 'num') + inp('ni_qty', 'الكمية المشتراة', '', 'num') +
+    '<select id="ni_cat">' + opt(S.settings.cats.map((c) => [c, c])) + '</select><select id="ni_unit">' + opt(S.settings.units.map((c) => [c, c])) + '</select><button onclick="A.newLine()">إضافة الصنف إلى الفاتورة</button>');
+}
 function cartScreen(kind) {
   const C = carts[kind], isS = kind === 'sale', t = cartTotals(kind);
   if (!need(isS ? 'sales' : 'purchases')) return denied();
@@ -616,10 +699,10 @@ function cartScreen(kind) {
       (it.packs.length ? '<button class="sec" onclick="A.unit(\'' + kind + '\',' + i + ')">تغيير الوحدة</button>' : '') +
       '<button class="sec" onclick="A.rm(\'' + kind + '\',' + i + ')">حذف البند</button></div>';
   }).join('');
-  const chips = S.items.filter((i) => (i.fav || i.quick) && (!isS || i.cat !== L.CAT_PUNCT)).slice(0, 12).map((i) => '<button class="sec" onclick="A.add(\'' + kind + '\',' + i.id + ')">' + esc(i.name) + '</button>').join('');
+  const chips = S.items.filter((i) => !i.archived && (i.fav || i.quick) && (!isS || i.cat !== L.CAT_PUNCT)).slice(0, 12).map((i) => '<button class="sec" onclick="A.add(\'' + kind + '\',' + i.id + ')">' + esc(i.name) + '</button>').join('');
   return '<div id="msg">' + banner() + '</div>' + (view === 'list' ? '' : '') +
     '<div class="tabs"><button ' + (view !== 'list' ? '' : 'class="sec"') + ' onclick="A.view(\'\')">' + (isS ? 'فاتورة بيع' : 'فاتورة شراء') + '</button><button ' + (view === 'list' ? '' : 'class="sec"') + ' onclick="A.view(\'list\')">السجل</button></div>' +
-    '<div class="card"><input id="q" placeholder="ابحث بالاسم أو الكود أو الباركود" oninput="A.search(\'' + kind + '\',this.value)"><div id="res" class="chips">' + chips + '</div></div>' + lines +
+    '<div class="card"><div class="srch"><input id="q" placeholder="ابحث بالاسم أو الكود أو الباركود" oninput="A.search(\'' + kind + '\',this.value)"><button onclick="A.scan(\'q\')" aria-label="مسح الباركود بالكاميرا">' + ic('camera') + '</button></div><div id="res" class="chips">' + chips + '</div></div>' + (isS ? '' : newItemFold()) + lines +
     '<div class="card"><div class="row"><span>الإجمالي</span><b id="tot">' + fmt(t.total) + '</b></div>' +
     '<input id="c_disc" placeholder="خصم على الفاتورة" inputmode="numeric" value="' + esc(C.disc) + '" oninput="A.pay(\'' + kind + '\')">' +
     '<select id="c_party" onchange="A.pay(\'' + kind + '\')"><option value="">' + (isS ? '— زبون نقدي (بدون) —' : '— بدون مورد —') + '</option>' + opt(ps.map((p) => [p.id, p.name + (p.phone ? ' ' + p.phone : '')]), C.party) + '</select>' +
@@ -659,22 +742,28 @@ const wsel = (id, sel) => '<select id="' + id + '">' + opt(S.warehouses.map((w) 
 // ---------- الأصناف والمخزون ----------
 function itemList(q) {
   q = L.norm(q || '').toLowerCase();
-  const a = S.items.filter((i) => !q || L.norm(i.name).toLowerCase().includes(q) || (i.code || '').toLowerCase().includes(q) || i.barcode === q);
-  return a.slice(0, 80).map((i) => row(esc(i.name) + ' <span class="pill">' + esc(i.cat) + '</span>', '<span class="' + (L.isLow(i) ? 'low' : '') + '">' + L.totalQty(i) + ' ' + esc(i.unit) + '</span>', 'A.view(\'it:' + i.id + '\')')).join('') || '<div class="mut">لا توجد أصناف</div>';
+  const a = S.items.filter((i) => (showArch || !i.archived) && (!q || L.norm(i.name).toLowerCase().includes(q) || (i.code || '').toLowerCase().includes(q) || i.barcode === String(q)));
+  return a.slice(0, 100).map((i) => row(esc(i.name) + ' <span class="pill">' + esc(i.cat) + '</span>' + (i.archived ? ' <span class="pill arc">مخفي</span>' : ''), '<span class="' + (L.isLow(i) ? 'low' : '') + '">' + L.totalQty(i) + ' ' + esc(i.unit) + '</span>', 'A.view(\'it:' + i.id + '\')')).join('') || '<div class="mut">لا توجد أصناف</div>';
+}
+function itemForm(it) {
+  const e = !!it, sup = S.parties.filter((p) => p.kind === 'supplier');
+  return inp('i_name', 'اسم الصنف', e ? it.name : '') + inp('i_code', 'الكود', e ? it.code : '') +
+    '<div class="srch">' + inp('i_bc', 'الباركود', e ? it.barcode : '') + '<button onclick="A.scan(\'i_bc\')" aria-label="مسح الباركود بالكاميرا">' + ic('camera') + '</button></div>' +
+    '<div class="mut">التصنيف</div><select id="i_cat">' + opt(S.settings.cats.map((c) => [c, c]), e ? it.cat : '') + '</select><div class="mut">الوحدة</div><select id="i_unit">' + opt(S.settings.units.map((c) => [c, c]), e ? it.unit : '') + '</select>' +
+    inp('i_buy', 'سعر الشراء', e ? it.buy : '', 'num') + inp('i_sell', 'سعر البيع', e ? it.sell : '', 'num') + inp('i_min', 'الحد الأدنى للتنبيه', e ? it.min : '', 'num') + (e ? '' : inp('i_open', 'الكمية الافتتاحية (اختياري)', '', 'num')) +
+    '<div class="mut">المورد</div><select id="i_sup"><option value="">— بدون مورد —</option>' + opt(sup.map((p) => [p.id, p.name]), e ? it.supplierId : '') + '</select>' +
+    inp('i_packs', 'وحدات بيع أكبر، مثال: كرتونة=12, دستة=12', e ? it.packs.map((p) => p.name + '=' + p.factor).join(', ') : '') + inp('i_notes', 'ملاحظات', e ? it.notes : '');
 }
 function items() {
   if (!need('inventory')) return denied();
   if (view.startsWith('it:')) return itemView(+view.slice(3));
-  if (view === 'add') return '<div id="msg">' + banner() + '</div><button class="sec" onclick="A.view(\'\')">رجوع</button>' + card('صنف جديد',
-    inp('i_name', 'اسم الصنف') + inp('i_code', 'الكود') + inp('i_bc', 'الباركود') + '<select id="i_cat">' + opt(S.settings.cats.map((c) => [c, c])) + '</select><select id="i_unit">' + opt(S.settings.units.map((c) => [c, c])) + '</select>' +
-    inp('i_buy', 'سعر الشراء', '', 'num') + inp('i_sell', 'سعر البيع', '', 'num') + inp('i_min', 'الحد الأدنى', '', 'num') + inp('i_open', 'الكمية الافتتاحية (اختياري)', '', 'num') +
-    '<select id="i_sup"><option value="">— المورد (اختياري) —</option>' + opt(S.parties.filter((p) => p.kind === 'supplier').map((p) => [p.id, p.name])) + '</select>' +
-    inp('i_packs', 'وحدات بيع أكبر، مثال: كرتونة=12, دستة=12') + inp('i_notes', 'ملاحظات') + '<button onclick="A.addItem()">حفظ الصنف</button>');
-  const low = S.items.filter(L.isLow);
-  return '<div id="msg">' + banner() + '</div><div class="grid"><button onclick="A.view(\'add\')">صنف جديد</button><button class="sec" onclick="A.view(\'cont\')">العبوات الفارغة</button></div>' +
+  if (view === 'add') return '<div id="msg">' + banner() + '</div><button class="sec" onclick="A.view(\'\')">رجوع للأصناف</button>' + card('صنف جديد', itemForm(null) + '<button onclick="A.addItem()">حفظ الصنف</button>');
+  const low = S.items.filter(L.isLow), arc = S.items.filter((i) => i.archived).length;
+  return '<div id="msg">' + banner() + '</div><div class="grid"><button onclick="A.view(\'add\')">' + ic('plus') + 'صنف جديد</button><button class="sec" onclick="A.view(\'cont\')">العبوات الفارغة</button></div>' +
     (view === 'cont' ? card('تسجيل عبوة فارغة (يدوياً)', inp('k_type', 'النوع (جركان، كرتونة، برميل)') + inp('k_qty', 'الكمية', '', 'num') + inp('k_price', 'سعر البيع', '', 'num') + inp('k_link', 'الصنف الأصلي (اختياري، اسم)') + wsel('k_wh') + '<button onclick="A.addContainer()">تسجيل</button>') : '') +
-    (low.length ? '<div class="note warn">أصناف ناقصة: ' + low.map((i) => esc(i.name)).join('، ') + '</div>' : '') +
-    '<div class="card"><input id="iq" placeholder="ابحث بالاسم أو الكود أو الباركود" oninput="$(\'ilist\').innerHTML=itemList(this.value)"><div id="ilist">' + itemList('') + '</div></div>';
+    (low.length ? '<div class="note warn" style="margin-top:12px">أصناف ناقصة: ' + low.map((i) => esc(i.name)).join('، ') + '</div>' : '') +
+    '<div class="card" style="margin-top:12px"><div class="srch"><input id="iq" placeholder="ابحث بالاسم أو الكود أو الباركود" oninput="$(\'ilist\').innerHTML=itemList(this.value)"><button onclick="A.scan(\'iq\')" aria-label="مسح الباركود بالكاميرا">' + ic('camera') + '</button></div>' +
+    (arc ? '<label class="chk"><input type="checkbox" ' + (showArch ? 'checked' : '') + ' onchange="A.arch(this.checked)">عرض الأصناف المخفية (' + arc + ')</label>' : '') + '<div id="ilist">' + itemList('') + '</div></div>';
 }
 function itemView(id) {
   const it = L.item(S, id), d = today(), adv = L.advise(L.soldPerDay(S, id, d, 30), L.totalQty(it), 3, 14);
@@ -682,13 +771,14 @@ function itemView(id) {
   const sup = Object.keys(bySup).map((k) => row(esc(k == 0 ? 'بدون مورد' : pname(+k)), fmt(bySup[k].cost) + ' (' + bySup[k].at.slice(0, 10) + ')')).join('');
   const ch = it.priceHist.length > 1 ? (() => { const a = it.priceHist[it.priceHist.length - 2].cost, b = it.priceHist[it.priceHist.length - 1].cost; return a ? ((b - a) * 100 / a).toFixed(1) : '0'; })() : null;
   const punct = it.cat === L.CAT_PUNCT;
-  return '<div id="msg">' + banner() + '</div><button class="sec" onclick="A.view(\'\')">رجوع</button>' +
-    card(esc(it.name), row('التصنيف', esc(it.cat)) + row('الكمية الكلية', L.totalQty(it) + ' ' + esc(it.unit)) + S.warehouses.map((w) => row(esc(w.name), L.qtyOf(it, w.id))).join('') + row('متوسط التكلفة', fmt(Math.round(it.avg))) + row('سعر البيع', fmt(it.sell)) + (ch !== null ? row('تغيّر آخر سعر شراء', ch + '%') : '') +
+  return '<div id="msg">' + banner() + '</div><button class="sec" onclick="A.view(\'\')">رجوع للأصناف</button>' +
+    card(esc(it.name) + (it.archived ? ' <span class="pill arc">مخفي</span>' : ''), row('التصنيف', esc(it.cat)) + row('الكمية الكلية', L.totalQty(it) + ' ' + esc(it.unit)) + S.warehouses.map((w) => row(esc(w.name), L.qtyOf(it, w.id))).join('') + row('متوسط التكلفة', fmt(Math.round(it.avg))) + row('سعر البيع', fmt(it.sell)) + (ch !== null ? row('تغيّر آخر سعر شراء', ch + '%') : '') +
       (adv.avg > 0 ? row('معدل البيع اليومي', adv.avg.toFixed(1)) + row('يكفي نحو', adv.daysLeft + ' يوم') + (adv.now ? '<div class="note warn">اقتراح: اطلب ' + adv.qty + ' ' + esc(it.unit) + '</div>' : '') : '<div class="mut">لا توجد مبيعات كافية للتوقع</div>')) +
     (sup ? card('أسعار الشراء حسب المورد (مقارنة)', sup) : '') +
-    card('تعديل', inp('e_name', 'الاسم', it.name) + inp('e_buy', 'سعر الشراء', it.buy, 'num') + inp('e_sell', 'سعر البيع', it.sell, 'num') + inp('e_min', 'الحد الأدنى', it.min, 'num') + '<button onclick="A.updItem(' + id + ')">حفظ التعديل</button><button class="sec" onclick="A.fav(' + id + ')">' + (it.fav ? 'إزالة من المفضلة والسريعة' : 'إضافة للمفضلة والسريعة') + '</button>') +
-    card('حركات المخزون', wsel('s_wh') + inp('s_qty', 'الكمية / الكمية الفعلية', '', 'num') + inp('s_reason', 'السبب / ملاحظة') + '<div class="grid"><button class="sec" onclick="A.istock(\'count\',' + id + ')">جرد (ضبط الكمية)</button><button class="sec" onclick="A.istock(\'damaged\',' + id + ')">تالف</button><button class="sec" onclick="A.istock(\'expired\',' + id + ')">منتهي الصلاحية</button>' + (punct ? '<button class="sec" onclick="A.istock(\'consume\',' + id + ')">صرف للبنشر</button>' : '') + '</div>' +
-      '<div class="mut" style="margin-top:8px">نقل إلى مخزن آخر:</div>' + wsel('s_to') + '<button class="sec" onclick="A.istock(\'transfer\',' + id + ')">نقل</button>');
+    fold('تعديل بيانات الصنف', itemForm(it) + '<button onclick="A.updItem(' + id + ')">حفظ التعديل</button><button class="sec" onclick="A.fav(' + id + ')">' + (it.fav ? 'إزالة من المفضلة والسريعة' : 'إضافة للمفضلة والسريعة') + '</button>', true) +
+    fold('حركات المخزون', wsel('s_wh') + inp('s_qty', 'الكمية / الكمية الفعلية', '', 'num') + inp('s_reason', 'السبب / ملاحظة') + '<div class="grid"><button class="sec" onclick="A.istock(\'count\',' + id + ')">جرد (ضبط الكمية)</button><button class="sec" onclick="A.istock(\'damaged\',' + id + ')">تالف</button><button class="sec" onclick="A.istock(\'expired\',' + id + ')">منتهي الصلاحية</button>' + (punct ? '<button class="sec" onclick="A.istock(\'consume\',' + id + ')">صرف للبنشر</button>' : '') + '</div>' +
+      '<div class="mut" style="margin-top:8px">نقل إلى مخزن آخر:</div>' + wsel('s_to') + '<button class="sec" onclick="A.istock(\'transfer\',' + id + ')">نقل</button>') +
+    card('حذف أو إخفاء', '<div class="mut">الصنف الذي لا حركة عليه يُحذف نهائياً. الصنف الذي له مبيعات أو مشتريات أو رصيد يُخفى فقط، فتبقى فواتيره وتقاريره سليمة.</div>' + (it.archived ? '<button onclick="A.unarchive(' + id + ')">إظهار الصنف من جديد</button>' : '') + '<button class="bad" onclick="A.delItem(' + id + ')">' + ic('trash') + (it.archived ? 'حذف إن أمكن' : 'حذف / إخفاء الصنف') + '</button>');
 }
 
 // ---------- الأطراف ----------
@@ -697,7 +787,7 @@ function parties() {
   if (view.startsWith('p:')) return partyView(+view.slice(2));
   const list = S.parties.filter((p) => p.kind === psub);
   return '<div id="msg">' + banner() + '</div><div class="tabs"><button ' + (psub === 'customer' ? '' : 'class="sec"') + ' onclick="A.psub(\'customer\')">الزبائن</button><button ' + (psub === 'supplier' ? '' : 'class="sec"') + ' onclick="A.psub(\'supplier\')">الموردون</button></div>' +
-    card('إضافة ' + (psub === 'customer' ? 'زبون' : 'مورد'), inp('pa_name', 'الاسم') + inp('pa_phone', 'الهاتف') + inp('pa_addr', 'العنوان') + (psub === 'customer' ? inp('pa_lim', 'حد الائتمان (0 = بلا حد)', '', 'num') : inp('pa_rate', 'تقييم المورد (1 إلى 5)', '', 'num')) + inp('pa_notes', 'ملاحظات') + '<button onclick="A.addParty()">إضافة</button>') +
+    fold('إضافة ' + (psub === 'customer' ? 'زبون' : 'مورد'), inp('pa_name', 'الاسم') + inp('pa_phone', 'الهاتف') + inp('pa_addr', 'العنوان') + (psub === 'customer' ? inp('pa_lim', 'حد الائتمان (0 = بلا حد)', '', 'num') : inp('pa_rate', 'تقييم المورد (1 إلى 5)', '', 'num')) + inp('pa_notes', 'ملاحظات') + '<button onclick="A.addParty()">إضافة</button>') +
     card('القائمة', list.map((p) => row(esc(p.name) + (p.fav ? ' ⭐' : '') + (p.rating ? ' <span class="pill">' + p.rating + '/5</span>' : ''), fmt(L.partyBalance(S, p.id)), 'A.view(\'p:' + p.id + '\')')).join('') || '<div class="mut">لا يوجد أحد</div>');
 }
 function partyView(id) {
@@ -722,10 +812,10 @@ function debts() {
       (x.writtenOff && x.writtenOff > x.recovered ? card('استرداد دين هالك', inp('dr_amt', 'المبلغ', '', 'num') + '<button onclick="A.recover2(' + x.id + ')">تسجيل الاسترداد</button>') : '') +
       card('الدفعات', x.pays.map((p) => row(p.at.slice(0, 10) + ' ' + ({ pay: 'دفعة', recovery: 'استرداد', offset: 'مقاصة', return: 'مرتجع' }[p.kind] || ''), fmt(p.amount))).join('') || '<div class="mut">لا توجد</div>');
   }
-  const line = (x) => row(esc(x.label || pname(x.partyId)) + ' <span class="pill">' + AGE[L.agingBucket(x, d)] + '</span>', fmt(L.debtRemaining(x)), 'A.view(\'d:' + x.id + '\')');
+  const line = (x) => row(esc(x.label || pname(x.partyId)) + ' <span class="pill">' + AGE[L.agingBucket(x, d)] + '</span><small>عمره ' + Math.max(0, Math.floor((Date.parse(d) - Date.parse(x.at.slice(0, 10))) / 864e5)) + ' يوماً منذ التسجيل</small>', fmt(L.debtRemaining(x)), 'A.view(\'d:' + x.id + '\')');
   const r = open('receivable'), p = open('payable'), sum = (a) => a.reduce((t, x) => t + L.debtRemaining(x), 0);
   return '<div id="msg">' + banner() + '</div>' + card('ديون لنا (الزبائن): ' + fmt(sum(r)), r.map(line).join('') || '<div class="mut">لا توجد</div>') + card('ديون علينا (الموردون وغيرهم): ' + fmt(sum(p)), p.map(line).join('') || '<div class="mut">لا توجد</div>') +
-    (r.length && p.length ? card('مقاصة', '<select id="of_r">' + opt(r.map((x) => [x.id, 'لنا: ' + (x.label || pname(x.partyId)) + ' ' + L.debtRemaining(x)])) + '</select><select id="of_p">' + opt(p.map((x) => [x.id, 'علينا: ' + (x.label || pname(x.partyId)) + ' ' + L.debtRemaining(x)])) + '</select>' + inp('of_amt', 'مبلغ المقاصة', '', 'num') + '<button class="sec" onclick="A.offset()">تنفيذ المقاصة</button>') : '');
+    (r.length && p.length ? fold('مقاصة', '<select id="of_r">' + opt(r.map((x) => [x.id, 'لنا: ' + (x.label || pname(x.partyId)) + ' ' + L.debtRemaining(x)])) + '</select><select id="of_p">' + opt(p.map((x) => [x.id, 'علينا: ' + (x.label || pname(x.partyId)) + ' ' + L.debtRemaining(x)])) + '</select>' + inp('of_amt', 'مبلغ المقاصة', '', 'num') + '<button class="sec" onclick="A.offset()">تنفيذ المقاصة</button>') : '');
 }
 
 // ---------- الخزينة والمصروفات والإيرادات ----------
@@ -739,22 +829,22 @@ function money() {
       return h + '<button class="sec" onclick="A.view(\'\')">رجوع</button>' + card(esc(a.name) + ' — ' + fmt(L.accBalance(S, a.id)), tx.map((t) => row(t.at.slice(0, 10) + ' ' + esc(t.kind) + ' ' + esc(t.note), (t.amount > 0 ? '+' : '−') + fmt(Math.abs(t.amount)))).join('') || '<div class="mut">لا توجد حركات</div>'); }
     h += card('الحسابات', accs.map((a) => row(esc(a.name) + ' <span class="pill">' + (a.type === 'cash' ? 'صندوق' : 'بنك') + '</span>', fmt(L.accBalance(S, a.id)), 'A.view(\'a:' + a.id + '\')')).join(''));
     const sel = '<select id="m_acc">' + opt(accs.map((a) => [a.id, a.name])) + '</select>';
-    h += card('إيداع / سحب / رسوم', sel + '<select id="m_op"><option value="deposit">إيداع</option><option value="withdraw">سحب</option><option value="fee">رسوم وعمولات بنكية</option></select>' + inp('m_amt', 'المبلغ', '', 'num') + inp('m_note', 'ملاحظة') + '<button onclick="A.acctOp()">تنفيذ</button>');
-    h += card('تحويل بين الحسابات', '<select id="t_from">' + opt(accs.map((a) => [a.id, a.name])) + '</select><select id="t_to">' + opt(accs.map((a) => [a.id, a.name])) + '</select>' + inp('t_amt', 'المبلغ', '', 'num') + '<button class="sec" onclick="A.transfer()">تحويل</button>');
-    h += card('مطابقة الرصيد الفعلي', sel.replace('m_acc', 'r_acc') + inp('r_act', 'الرصيد الفعلي (عدّ الصندوق / كشف البنك)', '', 'num') + '<button class="sec" onclick="A.recon()">مطابقة وتسجيل الفرق</button>');
-    h += card('حساب جديد (بنك أو عهدة)', inp('n_name', 'الاسم') + '<select id="n_type"><option value="bank">حساب بنكي</option><option value="cash">عهدة نقدية مستقلة</option></select><button class="sec" onclick="A.addAcct()">إضافة</button>');
+    h += fold('إيداع / سحب / رسوم', sel + '<select id="m_op"><option value="deposit">إيداع</option><option value="withdraw">سحب</option><option value="fee">رسوم وعمولات بنكية</option></select>' + inp('m_amt', 'المبلغ', '', 'num') + inp('m_note', 'ملاحظة') + '<button onclick="A.acctOp()">تنفيذ</button>');
+    h += fold('تحويل بين الحسابات', '<select id="t_from">' + opt(accs.map((a) => [a.id, a.name])) + '</select><select id="t_to">' + opt(accs.map((a) => [a.id, a.name])) + '</select>' + inp('t_amt', 'المبلغ', '', 'num') + '<button class="sec" onclick="A.transfer()">تحويل</button>');
+    h += fold('مطابقة الرصيد الفعلي', sel.replace('m_acc', 'r_acc') + inp('r_act', 'الرصيد الفعلي (عدّ الصندوق / كشف البنك)', '', 'num') + '<button class="sec" onclick="A.recon()">مطابقة وتسجيل الفرق</button>');
+    h += fold('حساب جديد (بنك أو عهدة)', inp('n_name', 'الاسم') + '<select id="n_type"><option value="bank">حساب بنكي</option><option value="cash">عهدة نقدية مستقلة</option></select><button class="sec" onclick="A.addAcct()">إضافة</button>');
   } else if (msub === 'exp') {
     if (!need('expenses')) return h + denied();
-    h += card('مصروف جديد', '<select id="x_cat">' + opt(S.settings.expCats.map((c) => [c, c])) + '</select>' + inp('x_amt', 'المبلغ', '', 'num') + '<select id="x_m"><option value="cash">نقداً</option>' + (banks().length ? '<option value="bank">بنكياً</option>' : '') + '<option value="credit">آجل</option></select>' + (banks().length ? bankSel('x_b') : '') + inp('x_payee', 'الجهة (إلزامي للآجل)') + inp('x_note', 'ملاحظة / رقم إيصال') + '<button onclick="A.expense()">تسجيل المصروف</button>');
+    h += fold('مصروف جديد', '<select id="x_cat">' + opt(S.settings.expCats.map((c) => [c, c])) + '</select>' + inp('x_amt', 'المبلغ', '', 'num') + '<select id="x_m"><option value="cash">نقداً</option>' + (banks().length ? '<option value="bank">بنكياً</option>' : '') + '<option value="credit">آجل</option></select>' + (banks().length ? bankSel('x_b') : '') + inp('x_payee', 'الجهة (إلزامي للآجل)') + inp('x_note', 'ملاحظة / رقم إيصال') + '<button onclick="A.expense()">تسجيل المصروف</button>');
     h += card('آخر المصروفات', S.expenses.slice(-25).reverse().map((e) => row(e.at.slice(0, 10) + ' ' + esc(e.cat) + ' ' + esc(e.note), fmt(e.amount))).join('') || '<div class="mut">لا توجد</div>');
   } else if (msub === 'rev') {
     if (!need('revenues')) return h + denied();
-    h += card('إيراد آخر (ليس مبيعات ولا بنشر)', '<select id="v_cat">' + opt(['خدمات', 'عمولات', 'مبالغ مستردة', 'إيرادات متنوعة'].map((c) => [c, c])) + '</select>' + inp('v_amt', 'المبلغ', '', 'num') + '<select id="v_m"><option value="cash">نقداً</option>' + (banks().length ? '<option value="bank">بنكياً</option>' : '') + '</select>' + (banks().length ? bankSel('v_b') : '') + inp('v_note', 'ملاحظة') + '<button onclick="A.revenue()">تسجيل الإيراد</button>');
+    h += fold('إيراد آخر (ليس مبيعات ولا بنشر)', '<select id="v_cat">' + opt(['خدمات', 'عمولات', 'مبالغ مستردة', 'إيرادات متنوعة'].map((c) => [c, c])) + '</select>' + inp('v_amt', 'المبلغ', '', 'num') + '<select id="v_m"><option value="cash">نقداً</option>' + (banks().length ? '<option value="bank">بنكياً</option>' : '') + '</select>' + (banks().length ? bankSel('v_b') : '') + inp('v_note', 'ملاحظة') + '<button onclick="A.revenue()">تسجيل الإيراد</button>');
     h += card('آخر الإيرادات', S.revenues.slice(-25).reverse().map((e) => row(e.at.slice(0, 10) + ' ' + esc(e.cat), fmt(e.amount))).join('') || '<div class="mut">لا توجد</div>');
   } else {
     const due = L.dueRecurring(S, today());
     h += (due.length ? card('مستحقة هذا الشهر', due.map((r) => row(esc(r.cat) + ' ' + fmt(r.amount), '<button class="mini" onclick="A.postRec(' + r.id + ')">تسجيل</button>')).join('')) : '') +
-      card('مصروف متكرر شهرياً', '<select id="rc_cat">' + opt(S.settings.expCats.map((c) => [c, c])) + '</select>' + inp('rc_amt', 'المبلغ', '', 'num') + inp('rc_day', 'يوم الشهر (1 إلى 28)', '', 'num') + '<button onclick="A.addRec()">إضافة</button>') +
+      fold('مصروف متكرر شهرياً', '<select id="rc_cat">' + opt(S.settings.expCats.map((c) => [c, c])) + '</select>' + inp('rc_amt', 'المبلغ', '', 'num') + inp('rc_day', 'يوم الشهر (1 إلى 28)', '', 'num') + '<button onclick="A.addRec()">إضافة</button>') +
       card('القائمة', S.recurring.map((r) => row(esc(r.cat) + ' يوم ' + r.day, fmt(r.amount))).join('') || '<div class="mut">لا توجد</div>');
   }
   return h;
@@ -764,10 +854,10 @@ function money() {
 function puncture() {
   if (!(need('puncture_dist') || need('liquidation'))) return denied();
   const ws = S.people.filter((p) => p.kind === 'worker' && p.active), t = L.openTotals(S);
-  const form = !need('puncture_dist') ? '' : ws.length ? card('تسجيل دخل اليوم', '<input type="date" id="date" value="' + today() + '">' + inp('gross', 'إجمالي دخل البنشر (ج.س)', '', 'num') + '<div class="mut">الحاضرون اليوم (حتى عاملين):</div>' + ws.map((w) => '<label class="chk"><input type="checkbox" class="wk" value="' + w.id + '">' + esc(w.name) + '</label>').join('') + '<button onclick="A.day()">تسجيل الدخل</button>') : '<div class="note warn">أضف عمال البنشر أولاً من قسم «العمال والموظفون».</div>';
+  const form = !need('puncture_dist') ? '' : ws.length ? fold('تسجيل دخل اليوم', '<input type="date" id="date" value="' + today() + '">' + inp('gross', 'إجمالي دخل البنشر (ج.س)', '', 'num') + '<div class="mut">الحاضرون اليوم (حتى عاملين):</div>' + ws.map((w) => '<label class="chk"><input type="checkbox" class="wk" value="' + w.id + '">' + esc(w.name) + '</label>').join('') + '<button onclick="A.day()">تسجيل الدخل</button>', true) : '<div class="note warn">أضف عمال البنشر أولاً من قسم «العمال والموظفون».</div>';
   const rows = (a) => a.map((x) => row(esc(x[0]), esc(x[1]))).join('');
   return '<div id="msg">' + banner() + '</div>' + form + card('الرصيد المفتوح', rows([['إجمالي الدخل', fmt(t.gross)], ['العمال 40% (مقيدة يومياً)', fmt(t.w)], ['كبير الموظفين 20%', fmt(t.c)], ['حصة المحل', fmt(t.s)], ['مستلزمات معلّقة', fmt(t.supplies)], ['عجز مرحّل', fmt(t.deficit)], ['صافي المحل بعد التصفية', fmt(Math.max(0, t.net))]])) +
-    (need('puncture_dist') ? card('مستلزمات البنشر', '<div class="mut">تُخصم من حصة المحل فقط. للصرف من المخزون افتح الصنف (تصنيف مستلزمات البنشر) واختر «صرف للبنشر».</div>' + inp('sup', 'تكلفة يدوية (ج.س)', '', 'num') + inp('supn', 'ملاحظة') + '<button class="sec" onclick="A.supplies()">تسجيل المستلزمات</button>') : '') +
+    (need('puncture_dist') ? fold('مستلزمات البنشر', '<div class="mut">تُخصم من حصة المحل فقط. للصرف من المخزون افتح الصنف (تصنيف مستلزمات البنشر) واختر «صرف للبنشر».</div>' + inp('sup', 'تكلفة يدوية (ج.س)', '', 'num') + inp('supn', 'ملاحظة') + '<button class="sec" onclick="A.supplies()">تسجيل المستلزمات</button>') : '') +
     (need('liquidation') ? card('التصفية', '<div class="mut">لا تتم تلقائياً. حصة العمال لا تُضاف ثانية.</div><button ' + (t.gross >= L.THRESHOLD ? '' : 'disabled') + ' onclick="A.liq(false)">تصفية (عند بلوغ الحد)</button><button class="bad" onclick="A.liq(true)">تصفية مستعجلة</button>') : '') +
     card('آخر الأيام', S.days.slice(-12).reverse().map((d) => row(d.date + (d.liq ? ' ✓' : ''), fmt(d.gross))).join('') || '<div class="mut">لا توجد</div>') +
     card('سجل التصفيات', S.liquidations.slice().reverse().map((l) => row(l.at.slice(0, 10) + (l.urgent ? ' مستعجلة: ' + esc(l.reason) : '') + ' — ' + esc(l.approver), 'محل ' + fmt(l.shopNet) + ' | كبير ' + fmt(l.chief))).join('') || '<div class="mut">لا توجد</div>');
@@ -778,7 +868,7 @@ function people() {
     return '<div id="msg">' + banner() + '</div><button class="sec" onclick="A.view(\'\')">رجوع</button>' + card(esc(p.name) + ' — ' + KIND[p.kind] + (p.active ? '' : ' (موقوف)'), '<div class="mut">' + esc(p.phone) + '</div><div class="big">' + fmt(L.balance(S, id)) + '</div><div class="mut">الرصيد المستحق له</div>' +
       '<button class="sec" onclick="A.entry(\'ADVANCE\')">تسجيل سلفة</button><button class="sec" onclick="A.entry(\'WITHDRAWAL\')">تسجيل سحب</button><button class="sec" onclick="A.entry(\'PAYMENT\')">تسجيل دفعة تسوية</button>' + (p.kind === 'employee' ? '<button class="sec" onclick="A.entry(\'SALARY_DUE\')">تسجيل راتب مستحق</button>' : '') + '<button class="sec" onclick="A.toggle(' + id + ')">' + (p.active ? 'إيقاف الحساب' : 'تفعيل الحساب') + '</button><div class="mut">السلف والسحوبات والدفعات تخرج من الصندوق. المستحقات غير المدفوعة لا تخصم.</div>') +
       card('كشف الحساب', es.map((e) => row(e.at.slice(0, 10) + ' ' + L.TYPES[e.type], ((e.type === 'ACCRUAL' || e.type === 'SALARY_DUE') ? '+' : '−') + fmt(e.amount))).join('') || '<div class="mut">لا توجد حركات</div>'); }
-  return '<div id="msg">' + banner() + '</div>' + card('إضافة شخص', inp('pn', 'الاسم') + inp('pp', 'الهاتف') + '<select id="pk"><option value="worker">عامل بنشر</option><option value="employee">موظف</option><option value="chief">كبير الموظفين</option></select><button onclick="A.addPerson()">إضافة</button>') +
+  return '<div id="msg">' + banner() + '</div>' + fold('إضافة شخص', inp('pn', 'الاسم') + inp('pp', 'الهاتف') + '<select id="pk"><option value="worker">عامل بنشر</option><option value="employee">موظف</option><option value="chief">كبير الموظفين</option></select><button onclick="A.addPerson()">إضافة</button>') +
     card('القائمة', S.people.map((p) => row(esc(p.name) + ' <span class="mut">(' + KIND[p.kind] + (p.active ? '' : '، موقوف') + ')</span>', fmt(L.balance(S, p.id)), 'A.view(\'pe:' + p.id + '\')')).join('') || '<div class="mut">لا يوجد أحد</div>');
 }
 
@@ -799,6 +889,9 @@ function reports() {
     h += '<div class="grid noprint"><button class="sec" onclick="A.csv()">تصدير Excel (CSV)</button><button class="sec" onclick="window.print()">طباعة / PDF</button></div>';
   }
   h += card('المخزون', row('قيمة المخزون بسعر التكلفة', fmt(invVal)) + row('أصناف ناقصة', inv.filter((x) => x.low).length));
+  const ages = L.debtAges(S, d), ageRow = (x) => row(esc(x.name) + '<small>منذ التسجيل ' + x.sinceDays + ' يوماً (' + x.at + ') · ' + (x.due ? (x.lateDays ? 'متأخر ' + x.lateDays + ' يوماً عن الاستحقاق ' + x.due : 'الاستحقاق ' + x.due) : 'بلا تاريخ استحقاق') + '</small>', fmt(x.remaining));
+  h += card('كشف أعمار الديون: المدينون (لنا)', ages.filter((x) => x.kind === 'receivable').map(ageRow).join('') || '<div class="mut">لا توجد ديون</div>');
+  h += card('كشف أعمار الديون: علينا', ages.filter((x) => x.kind === 'payable').map(ageRow).join('') || '<div class="mut">لا توجد ديون</div>');
   h += card('الديون', row('لنا على الزبائن', fmt(db.recv)) + row('علينا', fmt(db.pay)) + AGE.slice(1).map((a, i) => row('— ' + a, fmt(db.aging[i + 1]))).join(''));
   if (need('cash')) h += card('النقدية والبنوك', S.accounts.map((a) => row(esc(a.name), fmt(L.accBalance(S, a.id)))).join(''));
   const t = L.openTotals(S);
@@ -807,20 +900,40 @@ function reports() {
 }
 
 // ---------- الإشعارات والإعدادات ----------
-function notes() { const n = L.notifications(S, today()); return card('الإشعارات (' + n.length + ')', n.map((x) => row(esc(x.m), '<button class="mini" onclick="A.go(\'' + x.go + '\')">فتح</button>')).join('') || '<div class="mut">لا توجد إشعارات</div>'); }
+const slot = () => today() + (new Date().getHours() < 14 ? 'a' : 'p');
+function unread() { const r = S.settings.readNotes || {}, sl = slot(); return L.notifications(S, today()).filter((x) => r[x.k] !== sl); }
+function notes() {
+  const n = unread(); lastNotes = n;
+  return card('الإشعارات الجديدة (' + n.length + ')', n.map((x, i) => '<div class="row"><span>' + esc(x.m) + '</span><button class="mini" onclick="A.openNote(' + i + ')">فتح</button></div>').join('') || '<div class="mut">لا توجد إشعارات جديدة</div>') +
+    (n.length ? '<button class="sec" onclick="A.readAll()">' + ic('check') + 'تحديد الكل كمقروء</button>' : '') + '<div class="mut" style="margin-top:12px">الإشعار الذي فتحته يختفي، وإن لم تعالجه يعود مرة في الصباح ومرة بعد الظهر.</div>';
+}
+
+// ---------- الإعدادات (أقسام) ----------
+function secHead(t) { return '<div id="msg">' + banner() + '</div><button class="sec" onclick="A.ssub(\'\')">رجوع للإعدادات</button><h2 style="margin:12px 0">' + t + '</h2>'; }
+const LISTS = [['units', 'الوحدات', 'l_unit', 'وحدة جديدة'], ['cats', 'تصنيفات الأصناف', 'l_cat', 'تصنيف جديد'], ['expCats', 'تصنيفات المصروفات', 'l_exp', 'تصنيف مصروف جديد']];
 function settings() {
-  const own = need('users'), last = S.settings.lastBackup;
-  let h = '<div id="msg">' + banner() + '</div>' + (!own ? '' : card('النسخ الاحتياطي', '<div class="mut">بياناتك على هذا الهاتف فقط. أنشئ نسخة وأرسلها إلى Drive أو واتساب أو تيليجرام. ' + (last ? 'آخر نسخة: ' + last.slice(0, 10) : 'لم تؤخذ نسخة بعد.') + '</div><button onclick="A.backup()">إنشاء نسخة احتياطية وإرسالها</button><div class="mut" style="margin-top:10px">استعادة من ملف (تستبدل البيانات الحالية):</div><input type="file" accept=".json" onchange="A.restore(this)">'));
-  h += card('المظهر والمحل', '<select id="th" onchange="A.theme(this.value)">' + opt([['auto', 'تلقائي'], ['light', 'نهاري'], ['dark', 'ليلي']], S.settings.theme) + '</select>' + inp('shop', 'اسم المحل (يظهر في الفاتورة)', S.settings.shopName || '') + '<button class="sec" onclick="A.shop()">حفظ اسم المحل</button>');
-  h += card('الأمان', '<button class="sec" onclick="A.lock()">قفل التطبيق الآن</button>' + inp('np1', 'رمز PIN جديد', '', '') .replace('<input', '<input type="password" inputmode="numeric"') + '<button class="sec" onclick="A.pinChange()">تغيير رمز PIN</button>');
-  if (own) {
-    h += card('المستخدمون والصلاحيات', S.users.map((u) => '<div class="card"><b>' + esc(u.name) + '</b> ' + (u.role === 'owner' ? '<span class="pill">المالك</span>' : (u.active ? '' : '<span class="pill">موقوف</span>')) +
-      (u.role === 'owner' ? '' : '<div class="chips" style="margin:6px 0">' + PERM_KEYS.filter((k) => k !== 'users').map((k) => '<label class="chk" style="width:48%"><input type="checkbox" ' + (u.perms.includes(k) ? 'checked' : '') + ' onchange="A.perm(' + u.id + ',\'' + k + '\',this.checked)">' + esc(L.PERMS[k]) + '</label>').join('') + '</div><div class="grid"><button class="sec" onclick="A.userToggle(' + u.id + ')">' + (u.active ? 'إيقاف الحساب' : 'تفعيل الحساب') + '</button><button class="sec" onclick="A.resetPin(' + u.id + ')">رمز جديد</button></div>') + '</div>').join('') +
-      '<h2>موظف جديد</h2>' + inp('u_name', 'اسم المستخدم') + inp('u_pin', 'رمز PIN').replace('<input', '<input type="password" inputmode="numeric"') + '<button onclick="A.addUser()">إضافة موظف (بلا صلاحيات، أعطه ما يلزم)</button>');
-    h += card('قوائم قابلة للإضافة', inp('l_unit', 'وحدة جديدة') + '<button class="sec" onclick="A.addList(\'units\',\'l_unit\')">إضافة وحدة</button>' + inp('l_cat', 'تصنيف أصناف جديد') + '<button class="sec" onclick="A.addList(\'cats\',\'l_cat\')">إضافة تصنيف</button>' + inp('l_exp', 'تصنيف مصروف جديد') + '<button class="sec" onclick="A.addList(\'expCats\',\'l_exp\')">إضافة تصنيف مصروف</button>' + inp('l_wh', 'مخزن جديد') + '<button class="sec" onclick="A.addWh()">إضافة مخزن</button>');
-    h += card('سجل النشاطات (لا يُحذف)', S.log.slice(-60).reverse().map((l) => '<div class="row"><span>' + l.at.slice(0, 16).replace('T', ' ') + ' · ' + esc(l.actor) + '</span><span>' + esc(l.action) + '</span></div>').join('') || '<div class="mut">لا يوجد</div>');
+  const own = need('users');
+  if (!ssub) {
+    const secs = [['look', 'palette', 'المظهر والمحل', 'الألوان واسم المحل', 1], ['sec', 'shield', 'الأمان والقفل', 'رمز PIN ومهلة القفل', 1], ['users', 'users', 'المستخدمون والصلاحيات', 'الموظفون وما يسمح لهم', own], ['lists', 'list', 'القوائم والمخازن', 'الوحدات والتصنيفات والمخازن', own], ['backup', 'backup', 'النسخ الاحتياطي', 'حفظ البيانات واستعادتها', own], ['log', 'clock', 'سجل النشاطات', 'ما جرى في التطبيق', own], ['about', 'info', 'عن التطبيق', 'الإصدار والمصمم والسياسات', 1]];
+    return '<div id="msg">' + banner() + '</div>' + card('الإعدادات', secs.filter((x) => x[4]).map((x) => lrow(x[1], x[2], 'A.ssub(\'' + x[0] + '\')', x[3])).join(''));
   }
-  return h + '<div class="card mut">ملاحظات: قراءة صور الفواتير بالذكاء الاصطناعي غير مضمّنة. الأوامر الصوتية تعتمد على متصفح هاتفك وقد تحتاج إنترنت.</div>';
+  if (ssub === 'look') return secHead('المظهر والمحل') + card('', '<div class="mut">المظهر</div><select id="th" onchange="A.theme(this.value)">' + opt([['auto', 'تلقائي'], ['light', 'نهاري'], ['dark', 'ليلي']], S.settings.theme) + '</select>' + (own ? inp('shop', 'اسم المحل (يظهر في الدخول والفاتورة)', S.settings.shopName || '') + '<button class="sec" onclick="A.shop()">حفظ اسم المحل</button>' : '<div class="mut">اسم المحل يغيّره المالك.</div>'));
+  if (ssub === 'sec') return secHead('الأمان والقفل') + card('', '<button class="sec" onclick="A.lock()">' + ic('lock') + 'قفل التطبيق الآن</button><div class="mut" style="margin-top:12px">قفل تلقائي بعد عدم الاستخدام:</div><select id="lk" onchange="A.lockMin(this.value)">' + opt([['1', 'دقيقة'], ['5', '5 دقائق'], ['10', '10 دقائق'], ['30', '30 دقيقة'], ['60', 'ساعة'], ['0', 'بدون قفل تلقائي']], String(S.settings.lockMin == null ? 10 : S.settings.lockMin)) + '</select>') +
+    fold('تغيير رمز PIN', inp('np1', 'رمز PIN جديد (4 إلى 8 أرقام)').replace('<input', '<input type="password" inputmode="numeric"') + '<button class="sec" onclick="A.pinChange()">تغيير رمز PIN</button>');
+  if (!own && ssub !== 'about') return secHead('') + denied();
+  if (ssub === 'users') return secHead('المستخدمون والصلاحيات') + fold('موظف جديد', inp('u_name', 'اسم المستخدم') + inp('u_pin', 'رمز PIN').replace('<input', '<input type="password" inputmode="numeric"') + '<button onclick="A.addUser()">إضافة موظف (بلا صلاحيات، أعطه ما يلزم)</button>') +
+    S.users.map((u) => '<div class="card"><b>' + esc(u.name) + '</b> ' + (u.role === 'owner' ? '<span class="pill">المالك</span>' : (u.active ? '' : '<span class="pill">موقوف</span>')) +
+      (u.role === 'owner' ? '' : '<div class="chips" style="margin:6px 0">' + PERM_KEYS.filter((k) => k !== 'users').map((k) => '<label class="chk" style="width:48%"><input type="checkbox" ' + (u.perms.includes(k) ? 'checked' : '') + ' onchange="A.perm(' + u.id + ',\'' + k + '\',this.checked)">' + esc(L.PERMS[k]) + '</label>').join('') + '</div><div class="grid"><button class="sec" onclick="A.userToggle(' + u.id + ')">' + (u.active ? 'إيقاف الحساب' : 'تفعيل الحساب') + '</button><button class="sec" onclick="A.resetPin(' + u.id + ')">رمز جديد</button></div>') + '</div>').join('');
+  if (ssub === 'lists') return secHead('القوائم والمخازن') + LISTS.map((l) => card(l[1], '<div class="chips" style="margin-bottom:8px">' + S.settings[l[0]].map((v) => '<span class="pill">' + esc(v) + '</span>').join('') + '</div>' + '<details class="fold"><summary style="padding:8px 0;cursor:pointer;color:var(--pri);font-weight:700">+ إضافة</summary>' + inp(l[2], l[3]) + '<button class="sec" onclick="A.addList(\'' + l[0] + '\',\'' + l[2] + '\')">إضافة</button></details>').join('')) +
+    card('المخازن', '<div class="chips" style="margin-bottom:8px">' + S.warehouses.map((w) => '<span class="pill">' + esc(w.name) + '</span>').join('') + '</div><details class="fold"><summary style="padding:8px 0;cursor:pointer;color:var(--pri);font-weight:700">+ إضافة</summary>' + inp('l_wh', 'مخزن جديد') + '<button class="sec" onclick="A.addWh()">إضافة مخزن</button></details>');
+  if (ssub === 'backup') { const last = S.settings.lastBackup; return secHead('النسخ الاحتياطي') + card('', '<div class="mut">بياناتك على هذا الهاتف فقط. أنشئ نسخة وأرسلها إلى Drive أو واتساب أو تيليجرام. ' + (last ? 'آخر نسخة: ' + last.slice(0, 10) : 'لم تؤخذ نسخة بعد.') + '</div><button onclick="A.backup()">' + ic('backup') + 'إنشاء نسخة احتياطية وإرسالها</button>') + card('استعادة من ملف', '<div class="mut">تستبدل البيانات الحالية.</div><input type="file" accept=".json" onchange="A.restore(this)">'); }
+  if (ssub === 'log') return secHead('سجل النشاطات (لا يُحذف)') + card('', S.log.slice(-60).reverse().map((l) => '<div class="row"><span>' + l.at.slice(0, 16).replace('T', ' ') + ' · ' + esc(l.actor) + '</span><span>' + esc(l.action) + '</span></div>').join('') || '<div class="mut">لا يوجد</div>');
+  if (ssub === 'about') return secHead('عن التطبيق') + card('', row('اسم التطبيق', 'ESPIRATI ' + APP_VERSION.slice(0, 3)) + row('رقم الإصدار', APP_VERSION) + row('المصمم', 'Claude من Anthropic، بطلب من مالك المحل') + row('نوع التطبيق', 'يعمل بدون إنترنت على هاتفك') + row('العملة', 'الجنيه السوداني (ج.س)')) +
+    fold('سياسة الخصوصية', '<div class="mut">بياناتك (الأصناف والفواتير والديون والحسابات) تُحفظ على هذا الهاتف فقط ولا تُرسل إلى أي خادم. لا توجد إعلانات ولا تتبع. الإملاء الصوتي يستخدم خدمة المتصفح وقد يرسل الصوت إلى مزوّدها. النسخة الاحتياطية ملفك أنت، وأنت المسؤول عن مكان حفظها.</div>') +
+    fold('شروط الاستخدام', '<div class="mut">التطبيق أداة مساعدة لإدارة المحل، وأرقامه تعتمد على ما تدخله. راجع الحسابات بنفسك، وخذ نسخة احتياطية بانتظام. لا يتحمل المصمم خسارة بيانات سببها فقد الهاتف أو مسح بيانات المتصفح دون نسخة احتياطية.</div>') +
+    fold('الأمان', '<div class="mut">رموز PIN تُخزَّن مشفّرة ولا يمكن قراءتها. احفظ رمز الاسترداد في مكان آمن. القفل التلقائي يحميك عند ترك الهاتف.</div>') +
+    '<div class="card mut">ملاحظة: قراءة صور الفواتير بالذكاء الاصطناعي غير مضمّنة. الأوامر الصوتية تعتمد على متصفح هاتفك وقد تحتاج إنترنت.</div>';
+  return secHead('');
 }
 // ---------- المساعد ----------
 let aiOut = '';
@@ -830,10 +943,15 @@ function aiSheet() {
 
 // ---------- الأوامر ----------
 const A = {
-  go(t) { tab = t; view = ''; msg = null; render(); window.scrollTo(0, 0); },
+  go(t) { tab = t; view = ''; ssub = ''; msg = null; render(); window.scrollTo(0, 0); },
   view(v) { view = v; msg = null; render(); window.scrollTo(0, 0); },
   psub(v) { psub = v; render(); }, msub(v) { msub = v; view = ''; render(); },
-  lock() { cur = null; tab = 'home'; view = ''; msg = null; render(); },
+  ssub(v) { ssub = v; msg = null; render(); window.scrollTo(0, 0); },
+  lock() { cur = null; endSession(); pinBuf = ''; tab = 'home'; view = ''; ssub = ''; msg = null; render(); },
+  pickUser(id) { loginUser = id; pinBuf = ''; msg = null; render(); },
+  key(k) { if (k === 'x') pinBuf = pinBuf.slice(0, -1); else if (pinBuf.length < 8) pinBuf += k; const d = $('dots'); if (d) d.innerHTML = dotsHTML(); },
+  lockMin(v) { S.settings.lockMin = +v; save(); msg = { t: 'okm', m: 'تم حفظ مهلة القفل' }; render(); },
+  arch(on) { showArch = on; render(); },
   async setup() {
     try { const n = val('su_name').trim(), p = val('su_pin'); if (!n) throw new Error('الاسم مطلوب'); if (!goodPin(p)) throw new Error('الرمز 4 إلى 8 أرقام'); if (p !== val('su_pin2')) throw new Error('الرمزان غير متطابقين');
       const salt = rnd(8), rec = rnd(5).toUpperCase(), rs = rnd(8), u = L.addUser(S, { name: n, role: 'owner', salt, hash: await hashPin(p, salt), recSalt: rs, recHash: await hashPin(rec, rs) }, n);
@@ -841,8 +959,10 @@ const A = {
     } catch (e) { msg = { t: 'err', m: e.message }; render(); }
   },
   async login() {
-    const u = S.users.find((x) => x.id === +val('lg_u')); loginUser = u ? u.id : 0; if (!u || !u.active) { msg = { t: 'err', m: 'الحساب موقوف' }; return render(); }
-    if ((await hashPin(val('lg_pin'), u.salt)) === u.hash) { cur = u; tab = 'home'; view = ''; msg = null; addLogLogin(u); render(); } else { msg = { t: 'err', m: 'الرمز غير صحيح' }; render(); }
+    const u = S.users.find((x) => x.id === loginUser); if (!u || !u.active) { msg = { t: 'err', m: 'الحساب موقوف' }; return render(); }
+    if (!pinBuf) { msg = { t: 'err', m: 'اكتب الرمز أولاً' }; return render(); }
+    const p = pinBuf; pinBuf = '';
+    if ((await hashPin(p, u.salt)) === u.hash) { cur = u; tab = 'home'; view = ''; ssub = ''; msg = null; addLogLogin(u); touch(); render(); } else { msg = { t: 'err', m: 'الرمز غير صحيح' }; render(); }
   },
   async recover() {
     const o = S.users.find((u) => u.role === 'owner'); if (!o || !o.recHash) { msg = { t: 'err', m: 'لا يوجد رمز استرداد' }; return render(); }
@@ -863,7 +983,7 @@ const A = {
   // البيع والشراء
   search(kind, v) {
     const q = L.norm(v).toLowerCase(), isS = kind === 'sale';
-    const ok = (i) => !isS || i.cat !== L.CAT_PUNCT;
+    const ok = (i) => !i.archived && (!isS || i.cat !== L.CAT_PUNCT);
     const exact = q && S.items.find((i) => ok(i) && (i.barcode === v.trim() || (i.code && i.code.toLowerCase() === q)));
     if (exact) { this.add(kind, exact.id); return; }
     const m = q ? S.items.filter((i) => ok(i) && (L.norm(i.name).toLowerCase().includes(q) || (i.code || '').toLowerCase().includes(q))).slice(0, 10) : S.items.filter((i) => ok(i) && (i.fav || i.quick)).slice(0, 12);
@@ -895,8 +1015,25 @@ const A = {
   },
 
   // الأصناف
-  addItem() { act('inventory', () => { const packs = val('i_packs').split(/[,،]/).map((x) => x.split('=')).filter((x) => x.length === 2 && N(x[1]) > 0).map((x) => ({ name: x[0].trim(), factor: N(x[1]) })); L.addItem(S, { name: val('i_name'), code: val('i_code'), barcode: val('i_bc'), cat: val('i_cat'), unit: val('i_unit'), buy: N(val('i_buy')), sell: N(val('i_sell')), min: N(val('i_min')), openQty: N(val('i_open')), supplierId: val('i_sup'), packs, notes: val('i_notes') }, who()); view = ''; return 'تم حفظ الصنف'; }); },
-  updItem(id) { act('inventory', () => { const it = L.item(S, id); if ((N(val('e_buy')) !== it.buy || N(val('e_sell')) !== it.sell) && !need('prices')) throw new Error('لا تملك صلاحية تعديل الأسعار'); L.updateItem(S, id, { name: val('e_name'), buy: N(val('e_buy')), sell: N(val('e_sell')), min: N(val('e_min')) }, who()); return 'تم التعديل'; }); },
+  addItem() { act('inventory', () => { L.addItem(S, itemFields(true), who()); view = ''; return 'تم حفظ الصنف'; }); },
+  updItem(id) { act('inventory', () => { const it = L.item(S, id), f = itemFields(false); if ((f.buy !== it.buy || f.sell !== it.sell) && !need('prices')) throw new Error('لا تملك صلاحية تعديل الأسعار'); L.updateItem(S, id, f, who()); return 'تم التعديل'; }); },
+  delItem(id) { const it = L.item(S, id); if (!confirm('حذف أو إخفاء «' + it.name + '»؟')) return; act('inventory', () => { const r = L.removeItem(S, id, who()); if (r === 'deleted') { view = ''; return 'تم حذف الصنف نهائياً'; } return 'للصنف حركات سابقة فتم إخفاؤه (فواتيره القديمة سليمة). يمكنك إظهاره لاحقاً.'; }); },
+  unarchive(id) { act('inventory', () => { L.updateItem(S, id, { archived: false }, who()); return 'تم إظهار الصنف'; }); },
+  newLine() { act('purchases', () => { const it = L.addItem(S, { name: val('ni_name'), buy: N(val('ni_buy')), sell: N(val('ni_sell')), cat: val('ni_cat'), unit: val('ni_unit') }, who()); carts.purchase.lines.push({ itemId: it.id, name: it.name, qty: Math.max(1, N(val('ni_qty'))), factor: 1, unit: it.unit, p: it.buy, disc: 0, pk: -1 }); return 'تمت إضافة الصنف الجديد إلى الفاتورة'; }); },
+  // ماسح الباركود بالكاميرا (يعتمد على متصفح الهاتف)
+  scan(target) {
+    if (!('BarcodeDetector' in window) || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { alert('متصفحك لا يدعم قراءة الباركود بالكاميرا. حدّث متصفح Chrome، أو اكتب الرقم يدوياً.'); return; }
+    const ov = $('scan'); ov.classList.add('on'); ov.innerHTML = '<video id="sv" autoplay playsinline muted></video><div class="sb">وجّه الكاميرا نحو الباركود</div><button class="bad" onclick="A.scanStop()">إغلاق</button>';
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then((st) => {
+      scanStream = st; const v = $('sv'); if (!v) { A.scanStop(); return; } v.srcObject = st; let det; try { det = new BarcodeDetector(); } catch (e) { A.scanStop(); alert('تعذر تشغيل قارئ الباركود.'); return; }
+      const tick = async () => { if (!scanStream) return; try { const r = await det.detect(v); if (r.length) { const code = r[0].rawValue; A.scanStop(); if (navigator.vibrate) navigator.vibrate(80); const el = $(target); if (el) { el.value = code; el.dispatchEvent(new Event('input', { bubbles: true })); } return; } } catch (e) {} scanTimer = setTimeout(tick, 300); };
+      v.play().catch(() => {}); tick();
+    }).catch(() => { A.scanStop(); alert('تعذر فتح الكاميرا. اسمح للتطبيق باستخدام الكاميرا من إعدادات المتصفح.'); });
+  },
+  scanStop() { if (scanTimer) clearTimeout(scanTimer); scanTimer = null; if (scanStream) { scanStream.getTracks().forEach((t) => t.stop()); scanStream = null; } const ov = $('scan'); ov.classList.remove('on'); ov.innerHTML = ''; },
+  // الإشعارات
+  openNote(i) { const n = lastNotes[i]; if (!n) return; markRead([n.k]); A.go(n.go); },
+  readAll() { markRead(lastNotes.map((x) => x.k)); render(); },
   fav(id) { act('inventory', () => { const it = L.item(S, id); it.fav = !it.fav; it.quick = it.fav; }); },
   istock(kind, id) {
     const q = N(val('s_qty')), wh = +val('s_wh'); if (kind === 'count' ? val('s_qty') === '' : false) { msg = { t: 'err', m: 'اكتب الكمية الفعلية' }; return paintMsg(); }
@@ -960,7 +1097,7 @@ const A = {
   aiClose() { aiOut = ''; $('sheet').classList.remove('on'); $('sheet').innerHTML = ''; },
   aiMic() { const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if (!SR) { aiOut = '<div class="note warn">متصفحك لا يدعم الإملاء. استخدم ميكروفون لوحة المفاتيح.</div>'; $('ai_out').innerHTML = aiOut; return; } const r = new SR(); r.lang = 'ar'; r.onresult = (e) => { $('ai_t').value = e.results[0][0].transcript; A.aiRun(); }; r.onerror = () => { $('ai_out').innerHTML = '<div class="note warn">تعذر الإملاء الآن (قد يحتاج إنترنت).</div>'; }; r.start(); },
   aiRun() {
-    const text = val('ai_t'), names = S.items.filter((i) => i.cat !== L.CAT_PUNCT).map((i) => i.name), d = L.parseCommand(text, names), out = $('ai_out'), say = (h) => { aiOut = h; out.innerHTML = h; };
+    const text = val('ai_t'), names = S.items.filter((i) => !i.archived && i.cat !== L.CAT_PUNCT).map((i) => i.name), d = L.parseCommand(text, names), out = $('ai_out'), say = (h) => { aiOut = h; out.innerHTML = h; };
     S.assistantLog.push({ at: new Date().toISOString(), by: who(), text, intent: d.intent }); if (S.assistantLog.length > 200) S.assistantLog.shift(); save();
     if (d.intent === 'QUERY_TODAY_SALES') { if (!need('sales')) return say(denied()); const t = S.sales.filter((x) => x.at.slice(0, 10) === today()); return say(card('مبيعات اليوم', row('عدد الفواتير', t.length) + row('الإجمالي', fmt(t.reduce((a, x) => a + x.total, 0))))); }
     if (d.intent === 'QUERY_LOW_STOCK') { const l = S.items.filter(L.isLow); return say(card('الأصناف الناقصة', l.map((i) => row(esc(i.name), L.totalQty(i))).join('') || '<div class="mut">لا يوجد نقص</div>')); }
@@ -987,21 +1124,31 @@ function addLogLogin(u) { S.log.push({ at: new Date().toISOString(), actor: u.na
 
 // ---------- العرض ----------
 const SCREENS = { home, sales, items, purchases, parties, debts, money, puncture, people, reports, settings, notes, more };
-const NAV = [['home', 'الرئيسية'], ['sales', 'المبيعات'], ['items', 'المخزون'], ['purchases', 'المشتريات'], ['more', 'المزيد']];
+const NAV = [['home', 'الرئيسية'], ['sales', 'المبيعات'], ['items', 'الأصناف'], ['purchases', 'المشتريات'], ['more', 'المزيد']];
 function render() {
   applyTheme(); const nav = $('nav'), main = $('main'), fab = $('fab'), bell = $('bell');
-  if (!S.users.length) { main.innerHTML = '<div id="msg">' + banner() + '</div>' + setupScreen(); nav.innerHTML = ''; fab.style.display = 'none'; bell.innerHTML = ''; return; }
+  document.body.classList.toggle('out', !cur);
+  if (!ready) { main.innerHTML = '<div class="mut" style="text-align:center;padding:60px">جارٍ التحميل…</div>'; nav.innerHTML = ''; fab.style.display = 'none'; bell.innerHTML = ''; return; }
+  if (!S.users.length) { document.body.classList.add('out'); main.innerHTML = '<div id="msg">' + banner() + '</div>' + setupScreen(); nav.innerHTML = ''; fab.style.display = 'none'; bell.innerHTML = ''; return; }
   if (!cur) { main.innerHTML = loginScreen(); nav.innerHTML = ''; fab.style.display = 'none'; bell.innerHTML = ''; return; }
   const f = SCREENS[tab] || home; let h; try { h = f(); } catch (e) { h = '<div class="note err">خطأ في العرض: ' + esc(e.message) + '</div><button onclick="A.go(\'home\')">الرئيسية</button>'; }
   main.innerHTML = (h.startsWith('<div id="msg">') ? '' : '<div id="msg">' + banner() + '</div>') + h;
   const more = ['parties', 'debts', 'money', 'puncture', 'people', 'reports', 'settings', 'notes', 'more'];
-  nav.innerHTML = NAV.map((x) => '<a class="' + (tab === x[0] || (x[0] === 'more' && more.includes(tab)) ? 'on' : '') + '" onclick="A.go(\'' + x[0] + '\')">' + x[1] + '</a>').join('');
-  fab.style.display = 'block'; const n = L.notifications(S, today()).length; bell.innerHTML = '🔔' + (n ? '<b>' + n + '</b>' : '');
+  nav.innerHTML = NAV.map((x) => '<a class="' + (tab === x[0] || (x[0] === 'more' && more.includes(tab)) ? 'on' : '') + '" onclick="A.go(\'' + x[0] + '\')">' + ic(x[0]) + x[1] + '</a>').join('');
+  fab.style.display = 'block'; const n = unread().length; bell.innerHTML = ic('bell') + (n ? '<b>' + n + '</b>' : ''); touch();
 }
-document.addEventListener('visibilitychange', () => { if (document.hidden) hiddenAt = Date.now(); else if (cur && Date.now() - hiddenAt > 120000) { cur = null; render(); } });
+let scanStream = null, scanTimer = null;
+function itemFields(isNew) {
+  const packs = val('i_packs').split(/[,،]/).map((x) => x.split('=')).filter((x) => x.length === 2 && N(x[1]) > 0).map((x) => ({ name: x[0].trim(), factor: N(x[1]) }));
+  const f = { name: val('i_name'), code: val('i_code'), barcode: val('i_bc'), cat: val('i_cat'), unit: val('i_unit'), buy: N(val('i_buy')), sell: N(val('i_sell')), min: N(val('i_min')), supplierId: val('i_sup'), packs, notes: val('i_notes') };
+  if (isNew) f.openQty = N(val('i_open')); return f;
+}
+function markRead(keys) { const sl = slot(), r = {}; const old = S.settings.readNotes || {}; Object.keys(old).forEach((k) => { if (old[k] === sl) r[k] = sl; }); keys.forEach((k) => { r[k] = sl; }); S.settings.readNotes = r; save(); }
+document.addEventListener('visibilitychange', () => { if (document.hidden) { hiddenAt = Date.now(); touch(); } else if (cur && lockMs() > 0 && Date.now() - hiddenAt > lockMs()) { cur = null; endSession(); pinBuf = ''; render(); } });
+document.addEventListener('pointerdown', () => { if (cur) touch(); }, true);
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
-render();
+init();
 
 </script>
 </body>
